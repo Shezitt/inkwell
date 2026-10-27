@@ -3,6 +3,7 @@
 #include "core/Database.h"
 #include "core/NoteStore.h"
 #include "core/Schema.h"
+#include "core/Session.h"
 
 #include <QFile>
 #include <QRegularExpression>
@@ -106,6 +107,28 @@ private slots:
             writer.savePage(page, u"revision %1"_s.arg(i));
         QVERIFY(writer.flush(5000));
         QCOMPARE(m_store->pageBody(page).value(), u"revision 499"_s);
+    }
+
+    void savesOnlyTheLatestSession()
+    {
+        const PageId page = newPage();
+        BackgroundWriter writer;
+        QVERIFY(writer.start(dbPath()));
+
+        SessionState older;
+        older.tabs = {{page, 1, 0}};
+        older.currentTab = 0;
+        SessionState newer = older;
+        newer.tabs.first().cursor = 99;
+        newer.sidebarVisible = false;
+
+        writer.saveSession(older);
+        writer.savePage(page, u"body"_s);
+        writer.saveSession(newer);
+        QVERIFY(writer.flush(5000));
+
+        QCOMPARE(session::load(*m_db), newer);
+        QCOMPARE(m_store->pageBody(page).value(), u"body"_s);
     }
 
     void dropsSavesForDeletedPages()

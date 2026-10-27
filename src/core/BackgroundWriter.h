@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 
+#include "Session.h"
 #include "Types.h"
 
 #include <QHash>
@@ -8,6 +9,8 @@
 #include <QObject>
 #include <QString>
 #include <QWaitCondition>
+
+#include <optional>
 
 class QThread;
 
@@ -49,6 +52,10 @@ public:
     /// monotonically. Never blocks on I/O.
     quint64 savePage(PageId id, const QString &body);
 
+    /// Queues @p state to replace the stored session. Only the latest queued
+    /// session is written. Never blocks on I/O.
+    void saveSession(const SessionState &state);
+
     /// Blocks until everything queued before this call is durable, or until
     /// @p timeoutMs elapses (-1 waits forever). Returns true on success.
     bool flush(int timeoutMs = -1);
@@ -67,12 +74,18 @@ private:
         QString body;
         quint64 ticket = 0;
     };
-    using Batch = QHash<PageId, PendingSave>;
+    struct Batch
+    {
+        QHash<PageId, PendingSave> pages;
+        std::optional<SessionState> session;
+
+        [[nodiscard]] bool isEmpty() const { return pages.isEmpty() && !session; }
+    };
     enum class State { Stopped, Starting, Running, FailedToStart };
 
     void run(const QString &path);
     void processQueue(Database &db, NoteStore &store);
-    bool writeBatch(Database &db, NoteStore &store, Batch &batch, QString *error);
+    static bool writeBatch(Database &db, NoteStore &store, Batch &batch, QString *error);
 
     mutable QMutex m_mutex;
     QWaitCondition m_workAvailable; ///< wakes the writer thread

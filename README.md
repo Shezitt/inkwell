@@ -1,13 +1,133 @@
+<div align="center">
+
+<img src="data/icons/io.github.shezitt.Inkwell.svg" width="96" alt="Inkwell icon">
+
 # Inkwell
 
-A fast, native notes app that never loses what you wrote.
+**A fast, native notes app that never loses what you wrote.**
+
+[![CI](https://github.com/Shezitt/inkwell/actions/workflows/ci.yml/badge.svg)](https://github.com/Shezitt/inkwell/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus)
+![Qt 6](https://img.shields.io/badge/Qt-6.4%2B-41CD52?logo=qt)
+
+</div>
 
 Inkwell combines the snappy, tabbed editing of a classic desktop text editor
-with a Notion-style tree of nested folders and pages. It is written in C++20
-with Qt 6.
+such as Kate with a Notion-style sidebar of nested folders and pages. It is
+written in C++20 with Qt 6.
 
-> **Status:** early development, working towards v0.1.0.
+![Inkwell with a nested folder tree on the left and three open tabs](docs/images/screenshot.png)
+
+## Features
+
+- **Nested folders and pages.** Organise notes in a tree of folders of any
+  depth, Notion style. Every page lives in a folder.
+- **Tabs.** Open as many pages as you like side by side, reorder them, and
+  switch with <kbd>Ctrl</kbd>+<kbd>Tab</kbd>.
+- **Autosave you never have to think about.** There's no Save button to
+  remember. Edits are written to disk shortly after you pause, and at least
+  every two seconds while you type.
+- **Crash- and power-loss-safe.** Notes are stored in SQLite with a fsynced
+  write-ahead log. Closing the app, a crash, `kill`, logging out or pulling the
+  power cord costs at most a moment of typing, never a corrupted notebook.
+  [How it works →](docs/ARCHITECTURE.md#durability)
+- **Picks up where you left off.** Open tabs, cursor and scroll positions,
+  expanded folders and the window layout are restored on restart, even after
+  a crash.
+- **Fast.** Native code, all disk I/O on a background thread, an in-memory
+  tree, and page contents loaded only when opened.
+  [Details →](docs/ARCHITECTURE.md#performance)
+
+## Getting started
+
+### Build from source
+
+You need a C++20 compiler, CMake ≥ 3.21 and Qt ≥ 6.4 (Widgets and Sql, with
+the SQLite driver).
+
+<details open>
+<summary>Debian / Ubuntu</summary>
+
+```sh
+sudo apt install build-essential cmake qt6-base-dev libqt6sql6-sqlite libgl-dev
+```
+</details>
+
+<details>
+<summary>Fedora</summary>
+
+```sh
+sudo dnf install gcc-c++ cmake qt6-qtbase-devel
+```
+</details>
+
+<details>
+<summary>Arch Linux</summary>
+
+```sh
+sudo pacman -S base-devel cmake qt6-base
+```
+</details>
+
+Then:
+
+```sh
+git clone https://github.com/Shezitt/inkwell.git
+cd inkwell
+cmake --preset release
+cmake --build --preset release
+./build/release/src/inkwell
+```
+
+To install it system-wide, with a launcher entry and icon:
+
+```sh
+sudo cmake --install build/release
+```
+
+### Where are my notes?
+
+Everything lives in a single SQLite file in your user data directory, for
+example `~/.local/share/Inkwell/inkwell.sqlite3` on Linux. To use another file,
+for instance on a synced folder, start Inkwell with
+`inkwell --database /path/to/notes.sqlite3`.
+
+## Keyboard shortcuts
+
+| Action                     | Shortcut                                        |
+| -------------------------- | ----------------------------------------------- |
+| New page                   | <kbd>Ctrl</kbd>+<kbd>N</kbd>                     |
+| New folder                 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd>     |
+| Rename (in the sidebar)    | <kbd>F2</kbd>                                    |
+| Delete (in the sidebar)    | <kbd>Delete</kbd>                                |
+| Save now                   | <kbd>Ctrl</kbd>+<kbd>S</kbd> (optional)          |
+| Close tab                  | <kbd>Ctrl</kbd>+<kbd>W</kbd>                     |
+| Next / previous tab        | <kbd>Ctrl</kbd>+<kbd>Tab</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Tab</kbd> |
+| Toggle sidebar             | <kbd>Ctrl</kbd>+<kbd>B</kbd>                     |
+
+## Roadmap
+
+v0.1 lays the foundation. Ideas for what comes next:
+
+- [ ] Full-text search across all pages (SQLite FTS5)
+- [ ] Drag and drop to move pages and folders
+- [ ] Markdown syntax highlighting and live preview
+- [ ] Trash with undo, instead of permanent delete
+- [ ] Quick switcher (<kbd>Ctrl</kbd>+<kbd>P</kbd>) to open pages by name
+- [ ] Dark theme and font settings
+- [ ] Import and export (Markdown files)
+- [ ] Windows and macOS builds in CI
+
+Have an idea? [Open a feature request](https://github.com/Shezitt/inkwell/issues/new/choose).
+
+## Contributing
+
+Contributions are very welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md)
+for how to build, test, and format code, and for the branch and commit
+conventions. For an overview of how the code is organised, start with
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## License
 
-[MIT](LICENSE)
+Inkwell is released under the [MIT License](LICENSE).

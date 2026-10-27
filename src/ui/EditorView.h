@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 
+#include "core/Session.h"
 #include "core/Types.h"
 
 #include <QPlainTextEdit>
@@ -36,6 +37,11 @@ public:
     /// Called when the writer reports @p ticket as durable.
     void markDurable(quint64 ticket);
 
+    /// Cursor and scroll position, for session restore.
+    [[nodiscard]] TabState viewState() const;
+    /// Moves the cursor to @p cursor and scrolls to @p scroll once the editor is shown.
+    void restoreViewState(int cursor, int scroll);
+
 signals:
     /// hasUnsavedChanges() may have changed.
     void saveStateChanged();
@@ -43,15 +49,18 @@ signals:
 protected:
     void focusOutEvent(QFocusEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    void showEvent(QShowEvent *event) override;
 
 private:
     void updateMargins();
+    void applyPendingScroll();
 
     PageId m_pageId;
     BackgroundWriter &m_writer;
     AutosaveTimer *m_autosave;
     quint64 m_queuedTicket = 0; ///< ticket of the last save handed to the writer
     quint64 m_durableTicket = 0; ///< newest ticket the writer reported durable
+    int m_pendingScroll = -1; ///< scroll position to apply once laid out
 };
 
 } // namespace inkwell

@@ -6,6 +6,7 @@
 #include "core/NoteStore.h"
 
 #include <QLabel>
+#include <QScrollBar>
 #include <QStackedWidget>
 #include <QTabBar>
 #include <QTabWidget>
@@ -96,7 +97,10 @@ bool EditorArea::openPage(PageId id, const QString &title)
     connect(view, &QPlainTextEdit::cursorPositionChanged, this, [this, view] {
         if (view == currentEditor())
             emitCursorPosition();
+        emit viewStateChanged();
     });
+    connect(
+        view->verticalScrollBar(), &QScrollBar::valueChanged, this, &EditorArea::viewStateChanged);
 
     const int index = m_tabs->addTab(view, title);
     m_tabs->setTabToolTip(index, title);
@@ -154,6 +158,26 @@ bool EditorArea::hasUnsavedChanges() const
 {
     return std::any_of(m_editors.cbegin(), m_editors.cend(),
         [](const EditorView *view) { return view->hasUnsavedChanges(); });
+}
+
+QList<TabState> EditorArea::tabStates() const
+{
+    QList<TabState> result;
+    result.reserve(m_tabs->count());
+    for (int i = 0; i < m_tabs->count(); ++i)
+        result.append(editorAt(i)->viewState());
+    return result;
+}
+
+int EditorArea::currentIndex() const
+{
+    return m_tabs->currentIndex();
+}
+
+void EditorArea::setCurrentIndex(int index)
+{
+    m_tabs->setCurrentIndex(index);
+    focusCurrentEditor();
 }
 
 void EditorArea::saveAll()

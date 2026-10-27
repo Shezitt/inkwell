@@ -122,6 +122,24 @@ private slots:
         QCOMPARE(area.currentPage(), c);
     }
 
+    void reportsTabStatesInOrder()
+    {
+        EditorArea area(*m_notebook->store, *m_notebook->writer);
+        const PageId a = newPage(u"aaaa"_s);
+        const PageId b = newPage(u"bbbb"_s);
+        area.openPage(a, u"A"_s);
+        area.openPage(b, u"B"_s);
+        area.editor(a)->restoreViewState(2, 0);
+        area.setCurrentIndex(0);
+
+        const QList<TabState> states = area.tabStates();
+        QCOMPARE(states.size(), 2);
+        QCOMPARE(states.at(0).page, a);
+        QCOMPARE(states.at(0).cursor, 2);
+        QCOMPARE(states.at(1).page, b);
+        QCOMPARE(area.currentIndex(), 0);
+    }
+
     void savesEverythingOnDestruction()
     {
         const PageId a = newPage();

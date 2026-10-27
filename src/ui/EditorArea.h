@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 
+#include "core/Session.h"
 #include "core/Types.h"
 
 #include <QHash>
@@ -40,6 +41,11 @@ public:
     [[nodiscard]] QList<PageId> openPages() const;
     [[nodiscard]] bool hasUnsavedChanges() const;
 
+    /// Open tabs with their cursor and scroll positions, in tab order.
+    [[nodiscard]] QList<TabState> tabStates() const;
+    [[nodiscard]] int currentIndex() const;
+    void setCurrentIndex(int index);
+
     /// Queues every unsaved change in every tab.
     void saveAll();
 
@@ -53,6 +59,8 @@ signals:
     /// The current tab changed; 0 when no tab is open.
     void currentPageChanged(inkwell::PageId id);
     void cursorPositionChanged(int line, int column);
+    /// The cursor or scroll position of some tab changed.
+    void viewStateChanged();
     void saveStateChanged();
     /// Tabs were opened, closed or reordered.
     void tabsChanged();

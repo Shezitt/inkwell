@@ -72,6 +72,19 @@ private slots:
         QCOMPARE(m_notebook->storedBody(page), u"original"_s);
     }
 
+    void restoresCursorAndScroll()
+    {
+        const QString body = u"line\n"_s.repeated(500);
+        EditorView view(m_notebook->newPage(body), body, *m_notebook->writer);
+        view.restoreViewState(25, 120);
+        QCOMPARE(view.viewState().cursor, 25);
+        QCOMPARE(view.viewState().scroll, 120); // pending until shown
+
+        view.restoreViewState(1'000'000, 0); // clamped to the end of the text
+        QCOMPARE(view.viewState().cursor, int(body.size()));
+        QVERIFY(!view.hasUnsavedChanges());
+    }
+
     void undoToSavedTextIsClean()
     {
         EditorView view(m_notebook->newPage(), {}, *m_notebook->writer);

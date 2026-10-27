@@ -1,6 +1,7 @@
 # Core: storage and application logic. Must not depend on Qt Widgets.
 add_library(
   inkwell_core STATIC
+  core/BackgroundWriter.cpp
   core/Database.cpp
   core/Log.cpp
   core/NoteStore.cpp

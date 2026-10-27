@@ -15,6 +15,7 @@
 #include <QLockFile>
 #include <QMessageBox>
 #include <QPointer>
+#include <QSessionManager>
 
 using namespace Qt::StringLiterals;
 
@@ -106,5 +107,9 @@ int main(int argc, char *argv[])
     window.show();
     mainWindow = &window;
 
+    // Logging out: the session manager may end the process right after this.
+    QObject::connect(
+        &app, &QGuiApplication::commitDataRequest, &window,
+        [&window](QSessionManager &) { window.saveEverything(5000); }, Qt::DirectConnection);
     return QApplication::exec();
 }

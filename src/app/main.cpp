@@ -33,7 +33,6 @@ int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
     QApplication::setApplicationName(u"Inkwell"_s);
-    QApplication::setOrganizationName(u"Inkwell"_s);
     QApplication::setApplicationVersion(QStringLiteral(INKWELL_VERSION));
     QApplication::setDesktopFileName(u"io.github.shezitt.Inkwell"_s);
     // Prefer the installed theme icon; fall back to the bundled one.

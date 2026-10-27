@@ -2,6 +2,7 @@
 #include "MainWindow.h"
 
 #include "EditorArea.h"
+#include "EditorView.h"
 #include "NavigationPane.h"
 #include "PageTreeModel.h"
 #include "core/BackgroundWriter.h"
@@ -13,6 +14,7 @@
 #include <QMessageBox>
 #include <QSplitter>
 #include <QStatusBar>
+#include <QTimer>
 
 using namespace Qt::StringLiterals;
 
@@ -22,6 +24,8 @@ namespace {
 
 /// How long closing the window may wait for queued saves to reach the disk.
 constexpr int kCloseFlushTimeoutMs = 5000;
+/// Session changes (tabs, cursor, layout) are batched for this long.
+constexpr int kSessionSaveDelayMs = 1000;
 
 } // namespace
 
@@ -34,6 +38,7 @@ MainWindow::MainWindow(NoteStore &store, BackgroundWriter &writer, QWidget *pare
     , m_splitter(new QSplitter(Qt::Horizontal, this))
     , m_saveStatus(new QLabel(this))
     , m_cursorStatus(new QLabel(this))
+    , m_sessionTimer(new QTimer(this))
 {
     m_splitter->addWidget(m_navigation);
     m_splitter->addWidget(m_editors);
@@ -74,6 +79,18 @@ MainWindow::MainWindow(NoteStore &store, BackgroundWriter &writer, QWidget *pare
         updateSaveStatus();
     });
 
+    // Keep the stored session current, so even a crash reopens the same tabs.
+    m_sessionTimer->setSingleShot(true);
+    m_sessionTimer->setInterval(kSessionSaveDelayMs);
+    connect(
+        m_sessionTimer, &QTimer::timeout, this, [this] { m_writer.saveSession(captureSession()); });
+    connect(m_editors, &EditorArea::tabsChanged, this, &MainWindow::scheduleSessionSave);
+    connect(m_editors, &EditorArea::currentPageChanged, this, &MainWindow::scheduleSessionSave);
+    connect(m_editors, &EditorArea::viewStateChanged, this, &MainWindow::scheduleSessionSave);
+    connect(
+        m_navigation, &NavigationPane::expansionChanged, this, &MainWindow::scheduleSessionSave);
+    connect(m_splitter, &QSplitter::splitterMoved, this, &MainWindow::scheduleSessionSave);
+
     createActions();
     updateWindowTitle();
     updateSaveStatus();
@@ -83,9 +100,43 @@ MainWindow::MainWindow(NoteStore &store, BackgroundWriter &writer, QWidget *pare
 
 MainWindow::~MainWindow() = default;
 
+void MainWindow::restoreSession(const SessionState &state)
+{
+    if (!state.windowGeometry.isEmpty())
+        restoreGeometry(state.windowGeometry);
+    restoreState(state.windowState);
+    m_splitter->restoreState(state.splitterState);
+    m_sidebarAction->setChecked(state.sidebarVisible);
+    m_navigation->setExpandedFolders(state.expandedFolders);
+
+    for (const TabState &tab : state.tabs) {
+        if (!m_model->pageIndex(tab.page).isValid())
+            continue;
+        if (m_editors->openPage(tab.page, m_model->pageTitle(tab.page)))
+            m_editors->editor(tab.page)->restoreViewState(tab.cursor, tab.scroll);
+    }
+    if (state.currentTab >= 0)
+        m_editors->setCurrentIndex(state.currentTab);
+}
+
+SessionState MainWindow::captureSession() const
+{
+    SessionState state;
+    state.tabs = m_editors->tabStates();
+    state.currentTab = m_editors->currentIndex();
+    state.expandedFolders = m_navigation->expandedFolders();
+    state.sidebarVisible = m_sidebarAction->isChecked();
+    state.windowGeometry = saveGeometry();
+    state.windowState = saveState();
+    state.splitterState = m_splitter->saveState();
+    return state;
+}
+
 void MainWindow::closeEvent(QCloseEvent *event)
 {
     m_editors->saveAll();
+    m_sessionTimer->stop();
+    m_writer.saveSession(captureSession());
     if (m_writer.flush(kCloseFlushTimeoutMs)) {
         event->accept();
         return;
@@ -99,6 +150,18 @@ void MainWindow::closeEvent(QCloseEvent *event)
         event->accept();
     else
         event->ignore();
+}
+
+void MainWindow::moveEvent(QMoveEvent *event)
+{
+    QMainWindow::moveEvent(event);
+    scheduleSessionSave();
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    scheduleSessionSave();
 }
 
 void MainWindow::createActions()
@@ -124,11 +187,12 @@ void MainWindow::createActions()
     connect(quit, &QAction::triggered, this, &QWidget::close);
 
     QMenu *view = menuBar()->addMenu(tr("&View"));
-    QAction *sidebar = view->addAction(tr("Show &Sidebar"));
-    sidebar->setCheckable(true);
-    sidebar->setChecked(true);
-    sidebar->setShortcut(Qt::CTRL | Qt::Key_B);
-    connect(sidebar, &QAction::toggled, m_navigation, &QWidget::setVisible);
+    m_sidebarAction = view->addAction(tr("Show &Sidebar"));
+    m_sidebarAction->setCheckable(true);
+    m_sidebarAction->setChecked(true);
+    m_sidebarAction->setShortcut(Qt::CTRL | Qt::Key_B);
+    connect(m_sidebarAction, &QAction::toggled, m_navigation, &QWidget::setVisible);
+    connect(m_sidebarAction, &QAction::toggled, this, &MainWindow::scheduleSessionSave);
     view->addSeparator();
 
     QAction *next = view->addAction(tr("&Next Tab"));
@@ -173,6 +237,11 @@ void MainWindow::updateSaveStatus()
         m_saveStatus->setText(tr("All changes saved"));
         m_saveStatus->setToolTip({});
     }
+}
+
+void MainWindow::scheduleSessionSave()
+{
+    m_sessionTimer->start();
 }
 
 void MainWindow::showError(const QString &message)

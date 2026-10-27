@@ -8,9 +8,11 @@
 
 #include <QApplication>
 #include <QCloseEvent>
+#include <QLabel>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QSplitter>
+#include <QStatusBar>
 
 using namespace Qt::StringLiterals;
 
@@ -30,6 +32,8 @@ MainWindow::MainWindow(NoteStore &store, BackgroundWriter &writer, QWidget *pare
     , m_navigation(new NavigationPane(m_model, this))
     , m_editors(new EditorArea(store, writer, this))
     , m_splitter(new QSplitter(Qt::Horizontal, this))
+    , m_saveStatus(new QLabel(this))
+    , m_cursorStatus(new QLabel(this))
 {
     m_splitter->addWidget(m_navigation);
     m_splitter->addWidget(m_editors);
@@ -50,8 +54,30 @@ MainWindow::MainWindow(NoteStore &store, BackgroundWriter &writer, QWidget *pare
     });
     connect(m_editors, &EditorArea::errorOccurred, this, &MainWindow::showError);
 
+    m_cursorStatus->setContentsMargins(8, 0, 8, 0);
+    m_saveStatus->setContentsMargins(8, 0, 8, 0);
+    statusBar()->addPermanentWidget(m_cursorStatus);
+    statusBar()->addPermanentWidget(m_saveStatus);
+    connect(m_editors, &EditorArea::cursorPositionChanged, this, [this](int line, int column) {
+        m_cursorStatus->setText(tr("Ln %1, Col %2").arg(line).arg(column));
+    });
+    connect(m_editors, &EditorArea::currentPageChanged, this,
+        [this](PageId id) { m_cursorStatus->setVisible(id != 0); });
+    connect(m_editors, &EditorArea::saveStateChanged, this, &MainWindow::updateSaveStatus);
+    // Writer signals come from its thread and arrive here queued.
+    connect(&m_writer, &BackgroundWriter::pageSaved, this, [this] {
+        m_saveFailing = false;
+        updateSaveStatus();
+    });
+    connect(&m_writer, &BackgroundWriter::saveFailed, this, [this] {
+        m_saveFailing = true;
+        updateSaveStatus();
+    });
+
     createActions();
     updateWindowTitle();
+    updateSaveStatus();
+    m_cursorStatus->hide();
     resize(1100, 720);
 }
 
@@ -133,6 +159,20 @@ void MainWindow::updateWindowTitle()
     const PageId page = m_editors->currentPage();
     const QString app = QApplication::applicationName();
     setWindowTitle(page ? m_model->pageTitle(page) + u" — "_s + app : app);
+}
+
+void MainWindow::updateSaveStatus()
+{
+    if (m_saveFailing) {
+        m_saveStatus->setText(tr("⚠ Saving failed, retrying…"));
+        m_saveStatus->setToolTip(m_writer.lastError());
+    } else if (m_editors->hasUnsavedChanges()) {
+        m_saveStatus->setText(tr("Saving…"));
+        m_saveStatus->setToolTip({});
+    } else {
+        m_saveStatus->setText(tr("All changes saved"));
+        m_saveStatus->setToolTip({});
+    }
 }
 
 void MainWindow::showError(const QString &message)

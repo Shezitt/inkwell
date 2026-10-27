@@ -5,6 +5,7 @@
 
 #include <QMainWindow>
 
+class QLabel;
 class QSplitter;
 
 namespace inkwell {
@@ -30,6 +31,7 @@ private:
     void createActions();
     void openPage(PageId id);
     void updateWindowTitle();
+    void updateSaveStatus();
     void showError(const QString &message);
     void showAbout();
 
@@ -38,6 +40,9 @@ private:
     NavigationPane *m_navigation;
     EditorArea *m_editors;
     QSplitter *m_splitter;
+    QLabel *m_saveStatus;
+    QLabel *m_cursorStatus;
+    bool m_saveFailing = false;
 };
 
 } // namespace inkwell

@@ -37,3 +37,10 @@ install(
   TARGETS inkwell
   BUNDLE DESTINATION .
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+if(UNIX AND NOT APPLE)
+  install(FILES "${PROJECT_SOURCE_DIR}/data/io.github.shezitt.Inkwell.desktop"
+          DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+  install(FILES "${PROJECT_SOURCE_DIR}/data/icons/io.github.shezitt.Inkwell.svg"
+          DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+endif()

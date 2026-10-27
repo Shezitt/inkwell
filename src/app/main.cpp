@@ -9,6 +9,9 @@
 
 #include <QApplication>
 #include <QCommandLineParser>
+#include <QDir>
+#include <QFileInfo>
+#include <QLockFile>
 #include <QMessageBox>
 
 using namespace Qt::StringLiterals;
@@ -40,6 +43,23 @@ int main(int argc, char *argv[])
     parser.addOption(databaseOption);
     parser.process(app);
     const QString databasePath = parser.value(databaseOption);
+
+    // Two windows editing the same notebook would overwrite each other's
+    // changes. QLockFile detects locks left behind by a crashed instance (the
+    // owning process no longer exists) and takes them over.
+    QDir().mkpath(QFileInfo(databasePath).absolutePath());
+    QLockFile lock(databasePath + u".lock"_s);
+    lock.setStaleLockTime(0); // only the PID check decides whether a lock is stale
+    if (!lock.tryLock(100)) {
+        if (lock.error() == QLockFile::LockFailedError) {
+            QMessageBox::information(nullptr, QApplication::applicationName(),
+                QApplication::translate("main", "Inkwell is already running with this notebook."));
+            return 0;
+        }
+        fatal(QApplication::translate("main", "Could not lock the notes database at\n%1")
+                .arg(databasePath));
+        return 1;
+    }
 
     inkwell::Database db;
     if (!db.open(databasePath)) {

@@ -1,0 +1,57 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! If you lost notes, please
+        say so in the title so it gets looked at first.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Create a folder
+        2. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: data-loss
+    attributes:
+      label: Was any data lost?
+      options:
+        - "No"
+        - "Yes, after a crash or forced quit"
+        - "Yes, after a power loss"
+        - "Yes, during normal use"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Inkwell version
+      description: Shown in Help → About Inkwell.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and Qt version
+      placeholder: "Debian 13, Qt 6.8.2"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Any terminal output from Inkwell.
+      render: text

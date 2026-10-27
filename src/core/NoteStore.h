@@ -38,6 +38,7 @@ public:
     bool renamePage(PageId id, const QString &title);
     bool deletePage(PageId id);
 
+    [[nodiscard]] bool pageExists(PageId id) const;
     [[nodiscard]] std::optional<QString> pageBody(PageId id) const;
     /// Stores @p body and bumps the page's updated_at. Fails for unknown pages.
     bool setPageBody(PageId id, const QString &body);

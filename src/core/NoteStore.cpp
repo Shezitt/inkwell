@@ -191,6 +191,15 @@ bool NoteStore::deletePage(PageId id)
     return remove(u"pages"_s, id);
 }
 
+bool NoteStore::pageExists(PageId id) const
+{
+    QSqlQuery query(m_db.connection());
+    query.setForwardOnly(true);
+    query.prepare(u"SELECT 1 FROM pages WHERE id = ?"_s);
+    query.addBindValue(id);
+    return query.exec() && query.next();
+}
+
 std::optional<QString> NoteStore::pageBody(PageId id) const
 {
     QSqlQuery query(m_db.connection());

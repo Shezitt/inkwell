@@ -6,7 +6,8 @@ add_library(
   core/Database.cpp
   core/Log.cpp
   core/NoteStore.cpp
-  core/Schema.cpp)
+  core/Schema.cpp
+  core/Session.cpp)
 target_include_directories(inkwell_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(
   inkwell_core

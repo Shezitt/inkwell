@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "core/BackgroundWriter.h"
 #include "core/Database.h"
 #include "core/NoteStore.h"
 #include "core/Schema.h"
@@ -54,7 +55,16 @@ int main(int argc, char *argv[])
     }
     inkwell::NoteStore store(db);
 
-    inkwell::MainWindow window(store);
+    // Declared before the window so it outlives it and can write whatever the
+    // editors queue while they are torn down.
+    inkwell::BackgroundWriter writer;
+    if (!writer.start(databasePath)) {
+        fatal(QApplication::translate("main", "Could not start saving to\n%1\n\n%2")
+                .arg(databasePath, writer.lastError()));
+        return 1;
+    }
+
+    inkwell::MainWindow window(store, writer);
     window.show();
     return QApplication::exec();
 }

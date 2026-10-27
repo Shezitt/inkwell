@@ -13,3 +13,4 @@ function(inkwell_add_test name)
 endfunction()
 
 inkwell_add_test(tst_database SOURCES tst_database.cpp LIBRARIES inkwell_core)
+inkwell_add_test(tst_schema SOURCES tst_schema.cpp LIBRARIES inkwell_core)

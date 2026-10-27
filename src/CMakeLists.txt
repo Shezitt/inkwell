@@ -16,6 +16,7 @@ target_link_libraries(
 # UI: Qt Widgets front end.
 add_library(
   inkwell_ui STATIC
+  ui/EditorView.cpp
   ui/MainWindow.cpp
   ui/NavigationPane.cpp
   ui/PageTreeModel.cpp)

@@ -24,3 +24,4 @@ target_compile_definitions(tst_crashrecovery PRIVATE CRASH_WRITER_PATH="$<TARGET
 add_dependencies(tst_crashrecovery crash_writer)
 inkwell_add_test(tst_pagetreemodel SOURCES tst_pagetreemodel.cpp LIBRARIES inkwell_ui)
 inkwell_add_test(tst_autosavetimer SOURCES tst_autosavetimer.cpp LIBRARIES inkwell_core)
+inkwell_add_test(tst_editorview SOURCES tst_editorview.cpp TestNotebook.h LIBRARIES inkwell_ui)

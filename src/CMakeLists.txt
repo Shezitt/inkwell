@@ -12,10 +12,17 @@ target_link_libraries(
   PUBLIC Qt6::Core Qt6::Sql
   PRIVATE inkwell_warnings)
 
+# UI: Qt Widgets front end.
+add_library(inkwell_ui STATIC ui/PageTreeModel.cpp)
+target_link_libraries(
+  inkwell_ui
+  PUBLIC inkwell_core Qt6::Widgets
+  PRIVATE inkwell_warnings)
+
 qt_add_executable(inkwell WIN32 MACOSX_BUNDLE app/main.cpp)
 
 target_compile_definitions(inkwell PRIVATE INKWELL_VERSION="${PROJECT_VERSION}")
-target_link_libraries(inkwell PRIVATE inkwell_core Qt6::Widgets inkwell_warnings)
+target_link_libraries(inkwell PRIVATE inkwell_ui inkwell_warnings)
 
 include(GNUInstallDirs)
 install(

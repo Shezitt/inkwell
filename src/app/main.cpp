@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "TerminationSignals.h"
 #include "core/BackgroundWriter.h"
 #include "core/Database.h"
 #include "core/NoteStore.h"
@@ -13,6 +14,7 @@
 #include <QFileInfo>
 #include <QLockFile>
 #include <QMessageBox>
+#include <QPointer>
 
 using namespace Qt::StringLiterals;
 
@@ -32,6 +34,20 @@ int main(int argc, char *argv[])
     QApplication::setOrganizationName(u"Inkwell"_s);
     QApplication::setApplicationVersion(QStringLiteral(INKWELL_VERSION));
     QApplication::setDesktopFileName(u"io.github.shezitt.Inkwell"_s);
+
+    // Set once the window is up. Until then there is nothing to save.
+    QPointer<inkwell::MainWindow> mainWindow;
+
+    // Installed first so that a SIGTERM during startup is not lost either.
+    inkwell::TerminationSignals termination;
+    // kill, Ctrl+C in a terminal, or the system shutting down: save, then quit.
+    // exit() also ends the event loop of a startup dialog, where quit() would
+    // do nothing.
+    QObject::connect(&termination, &inkwell::TerminationSignals::received, &app, [&mainWindow] {
+        if (mainWindow)
+            mainWindow->saveEverything(5000);
+        QApplication::exit();
+    });
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QApplication::translate("main", "A fast, native notes app."));
@@ -88,5 +104,7 @@ int main(int argc, char *argv[])
     inkwell::MainWindow window(store, writer);
     window.restoreSession(inkwell::session::load(db));
     window.show();
+    mainWindow = &window;
+
     return QApplication::exec();
 }

@@ -28,3 +28,7 @@ inkwell_add_test(tst_editorview SOURCES tst_editorview.cpp TestNotebook.h LIBRAR
 inkwell_add_test(tst_editorarea SOURCES tst_editorarea.cpp TestNotebook.h LIBRARIES inkwell_ui)
 inkwell_add_test(tst_session SOURCES tst_session.cpp LIBRARIES inkwell_core)
 inkwell_add_test(tst_mainwindow SOURCES tst_mainwindow.cpp TestNotebook.h LIBRARIES inkwell_ui)
+
+inkwell_add_test(tst_shutdown SOURCES tst_shutdown.cpp LIBRARIES inkwell_core)
+target_compile_definitions(tst_shutdown PRIVATE INKWELL_APP_PATH="$<TARGET_FILE:inkwell>")
+add_dependencies(tst_shutdown inkwell)

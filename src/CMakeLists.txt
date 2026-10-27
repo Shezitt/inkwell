@@ -13,7 +13,10 @@ target_link_libraries(
   PRIVATE inkwell_warnings)
 
 # UI: Qt Widgets front end.
-add_library(inkwell_ui STATIC ui/PageTreeModel.cpp)
+add_library(
+  inkwell_ui STATIC
+  ui/NavigationPane.cpp
+  ui/PageTreeModel.cpp)
 target_link_libraries(
   inkwell_ui
   PUBLIC inkwell_core Qt6::Widgets

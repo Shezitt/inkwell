@@ -1,6 +1,7 @@
 # Core: storage and application logic. Must not depend on Qt Widgets.
 add_library(
   inkwell_core STATIC
+  core/AutosaveTimer.cpp
   core/BackgroundWriter.cpp
   core/Database.cpp
   core/Log.cpp
@@ -15,6 +16,8 @@ target_link_libraries(
 # UI: Qt Widgets front end.
 add_library(
   inkwell_ui STATIC
+  ui/EditorArea.cpp
+  ui/EditorView.cpp
   ui/MainWindow.cpp
   ui/NavigationPane.cpp
   ui/PageTreeModel.cpp)

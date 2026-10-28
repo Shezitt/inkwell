@@ -2,7 +2,9 @@
 #include "TestNotebook.h"
 #include "ui/EditorView.h"
 
+#include <QScrollBar>
 #include <QSignalSpy>
+#include <QTabWidget>
 #include <QTest>
 
 using namespace Qt::StringLiterals;
@@ -83,6 +85,40 @@ private slots:
         view.restoreViewState(1'000'000, 0); // clamped to the end of the text
         QCOMPARE(view.viewState().cursor, int(body.size()));
         QVERIFY(!view.hasUnsavedChanges());
+    }
+
+    void wrapsLinesToTheVisibleWidth()
+    {
+        // Paragraphs of words of varied lengths fill almost every line, so text
+        // wrapped for even a slightly wider area than the visible one sticks out.
+        const QStringList words = {u"a"_s, u"marker"_s, u"gripper"_s, u"to"_s, u"the"_s,
+            u"recordings"_s, u"camera"_s, u"of"_s, u"slowly"_s, u"tray"_s, u"opens"_s};
+        QString text;
+        quint32 seed = 1;
+        for (int line = 0; line < 30; ++line) {
+            for (int word = 0; word < 40; ++word) {
+                seed = seed * 1664525u + 1013904223u; // fixed sequence, same on every run
+                text += words.at(int(seed >> 16) % words.size()) + u' ';
+            }
+            text += u'\n';
+        }
+
+        for (const int width : {560, 600, 640, 680, 720, 760}) {
+            QTabWidget tabs;
+            tabs.addTab(
+                new EditorView(m_notebook->newPage(), u"short"_s, *m_notebook->writer), u"a"_s);
+            auto *editor = new EditorView(m_notebook->newPage(), text, *m_notebook->writer);
+            tabs.addTab(editor, u"b"_s);
+            tabs.resize(width, 400);
+            tabs.show();
+            QVERIFY(QTest::qWaitForWindowExposed(&tabs));
+
+            // A background tab gets its size only when it is first shown.
+            tabs.setCurrentIndex(1);
+            QCoreApplication::processEvents();
+            QVERIFY2(editor->horizontalScrollBar()->maximum() == 0,
+                qPrintable(u"text wider than the editor at a window width of %1"_s.arg(width)));
+        }
     }
 
     void undoToSavedTextIsClean()

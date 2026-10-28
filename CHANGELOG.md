@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Quick switcher: File > Go to Page… (Ctrl+P) finds pages by name, with fuzzy
   matching, and opens the chosen one.
 
+### Fixed
+
+- Text could run past the right edge of the editor, with a horizontal scroll
+  bar, after switching to a tab that was opened in the background.
+- Closing the window with unsaved edits, for example after saving had failed,
+  could crash Inkwell on exit.
+
 ## [0.1.1] - 2026-10-28
 
 ### Fixed

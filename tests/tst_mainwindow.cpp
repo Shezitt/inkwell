@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "TestNotebook.h"
 #include "core/Session.h"
+#include "ui/EditorArea.h"
 #include "ui/EditorView.h"
 #include "ui/MainWindow.h"
 #include "ui/NavigationPane.h"
@@ -92,6 +93,25 @@ private slots:
         QVERIFY(window.windowTitle().startsWith(u"Roadmap"_s));
         // Ready to type into the page.
         QTRY_VERIFY(qobject_cast<EditorView *>(QApplication::focusWidget()));
+    }
+
+    void closesCleanlyWithUnsavedEdits()
+    {
+        // As when saving fails and the user closes anyway: the editors still
+        // hand over their text while the window is being destroyed.
+        const PageId page = m_notebook->newPage();
+        SessionState state;
+        state.tabs = {{page, 0, 0}};
+        state.currentTab = 0;
+        auto window = std::make_unique<MainWindow>(*m_notebook->store, *m_notebook->writer);
+        window->restoreSession(state);
+        window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(window.get()));
+        QTest::keyClicks(window->findChild<EditorArea *>()->editor(page), u"unsaved"_s);
+
+        window.reset();
+        QVERIFY(m_notebook->writer->flush(5000));
+        QCOMPARE(m_notebook->storedBody(page), u"unsaved"_s);
     }
 
     void skipsTabsOfMissingPages()

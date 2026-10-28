@@ -104,8 +104,10 @@ void EditorView::focusOutEvent(QFocusEvent *event)
 
 void EditorView::resizeEvent(QResizeEvent *event)
 {
-    QPlainTextEdit::resizeEvent(event);
+    // Margins first: the base class wraps the text to the width of the area
+    // inside them, and does not wrap again when only the margins change.
     updateMargins();
+    QPlainTextEdit::resizeEvent(event);
 }
 
 void EditorView::showEvent(QShowEvent *event)

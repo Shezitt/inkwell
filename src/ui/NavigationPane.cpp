@@ -80,9 +80,12 @@ NavigationPane::NavigationPane(PageTreeModel *model, QWidget *parent)
     header->addWidget(toolButton(m_newFolder, this));
     header->addWidget(toolButton(m_newPage, this));
 
-    m_view->setModel(model);
     m_view->header()->hide();
-    m_view->setUniformRowHeights(true); // lets the view skip measuring every row
+    // Lets the view skip measuring every row. Must be set before the model: the
+    // shared row height is only measured while laying out rows with this on,
+    // so turning it on afterwards left existing rows 0 px tall.
+    m_view->setUniformRowHeights(true);
+    m_view->setModel(model);
     m_view->setEditTriggers(QAbstractItemView::EditKeyPressed);
     m_view->setContextMenuPolicy(Qt::CustomContextMenu);
     m_view->setFrameShape(QFrame::NoFrame);

@@ -2,8 +2,11 @@
 #include "TestNotebook.h"
 #include "core/Session.h"
 #include "ui/MainWindow.h"
+#include "ui/NavigationPane.h"
+#include "ui/PageTreeModel.h"
 
 #include <QTest>
+#include <QTreeView>
 
 using namespace Qt::StringLiterals;
 using namespace inkwell;
@@ -43,6 +46,26 @@ private slots:
         QCOMPARE(captured.currentTab, 1);
         QVERIFY(!captured.sidebarVisible);
         QVERIFY(!captured.windowGeometry.isEmpty());
+    }
+
+    void showsExistingFoldersAndPagesOnStartup()
+    {
+        // Everything already exists when the window is built, as on every
+        // start after the first. Each row must take up space in the sidebar.
+        const PageId page = m_notebook->newPage();
+        MainWindow window(*m_notebook->store, *m_notebook->writer);
+        SessionState state;
+        state.expandedFolders = {m_notebook->folder};
+        window.restoreSession(state);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+        const QTreeView *view = window.findChild<NavigationPane *>()->view();
+        const QModelIndex folder = view->model()->index(0, 0);
+        const QModelIndex pageRow = view->model()->index(0, 0, folder);
+        QCOMPARE(pageRow.data(PageTreeModel::IdRole).toLongLong(), page);
+        QVERIFY(view->visualRect(folder).height() > 0);
+        QVERIFY(view->visualRect(pageRow).top() >= view->visualRect(folder).bottom());
     }
 
     void skipsTabsOfMissingPages()

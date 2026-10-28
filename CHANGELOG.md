@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The sidebar showed no folders or pages after restarting, although they were
+  saved.
+
 ## [0.1.0]
 
 The first release: the foundation of Inkwell.

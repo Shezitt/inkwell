@@ -82,9 +82,17 @@ quint64 BackgroundWriter::savePage(PageId id, const QString &body)
 {
     QMutexLocker lock(&m_mutex);
     const quint64 ticket = ++m_lastTicket;
-    m_pending.insert(id, {body, ticket});
+    m_pending.pages.insert(id, {body, ticket});
     m_workAvailable.wakeOne();
     return ticket;
+}
+
+void BackgroundWriter::saveSession(const SessionState &state)
+{
+    QMutexLocker lock(&m_mutex);
+    ++m_lastTicket; // so that flush() waits for it too
+    m_pending.session = state;
+    m_workAvailable.wakeOne();
 }
 
 bool BackgroundWriter::flush(int timeoutMs)
@@ -153,7 +161,7 @@ void BackgroundWriter::processQueue(Database &db, NoteStore &store)
             m_durableTicket = batchTicket;
             m_progress.wakeAll();
             lock.unlock();
-            for (auto it = batch.cbegin(); it != batch.cend(); ++it)
+            for (auto it = batch.pages.cbegin(); it != batch.pages.cend(); ++it)
                 emit pageSaved(it.key(), it.value().ticket);
             lock.relock();
             attemptsWhileStopping = 0;
@@ -162,17 +170,19 @@ void BackgroundWriter::processQueue(Database &db, NoteStore &store)
 
         // Put back whatever has not been superseded meanwhile and retry later.
         m_lastError = error;
-        for (auto it = batch.cbegin(); it != batch.cend(); ++it) {
-            if (!m_pending.contains(it.key()))
-                m_pending.insert(it.key(), it.value());
+        for (auto it = batch.pages.cbegin(); it != batch.pages.cend(); ++it) {
+            if (!m_pending.pages.contains(it.key()))
+                m_pending.pages.insert(it.key(), it.value());
         }
+        if (!m_pending.session)
+            m_pending.session = std::move(batch.session);
         lock.unlock();
-        for (auto it = batch.cbegin(); it != batch.cend(); ++it)
+        for (auto it = batch.pages.cbegin(); it != batch.pages.cend(); ++it)
             emit saveFailed(it.key(), error);
         lock.relock();
 
         if (m_stopRequested && ++attemptsWhileStopping >= kMaxAttemptsWhileStopping) {
-            qCCritical(lcStorage) << "giving up on" << m_pending.size()
+            qCCritical(lcStorage) << "giving up on" << m_pending.pages.size()
                                   << "unsaved page(s) while stopping:" << error;
             return;
         }
@@ -188,23 +198,29 @@ bool BackgroundWriter::writeBatch(Database &db, NoteStore &store, Batch &batch, 
         return false;
     }
 
-    for (auto it = batch.begin(); it != batch.end();) {
+    for (auto it = batch.pages.begin(); it != batch.pages.end();) {
         if (store.setPageBody(it.key(), it.value().body)) {
             ++it;
         } else if (!store.pageExists(it.key())) {
             // Deleted while the save was queued; nothing left to save.
-            it = batch.erase(it);
+            it = batch.pages.erase(it);
         } else {
             *error = store.lastError();
             return false;
         }
     }
 
+    if (batch.session && !session::save(db, *batch.session)) {
+        *error = db.lastError();
+        return false;
+    }
+
     if (!tx.commit()) {
         *error = db.lastError();
         return false;
     }
-    qCDebug(lcStorage) << "wrote" << batch.size() << "page(s)";
+    qCDebug(lcStorage) << "wrote" << batch.pages.size() << "page(s)"
+                       << (batch.session ? "and the session" : "");
     return true;
 }
 

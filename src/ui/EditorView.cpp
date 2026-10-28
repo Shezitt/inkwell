@@ -5,6 +5,8 @@
 #include "core/BackgroundWriter.h"
 
 #include <QFontMetricsF>
+#include <QScrollBar>
+#include <QTimer>
 
 #include <algorithm>
 
@@ -78,6 +80,22 @@ void EditorView::markDurable(quint64 ticket)
     emit saveStateChanged();
 }
 
+TabState EditorView::viewState() const
+{
+    const int scroll = m_pendingScroll >= 0 ? m_pendingScroll : verticalScrollBar()->value();
+    return {m_pageId, textCursor().position(), scroll};
+}
+
+void EditorView::restoreViewState(int cursor, int scroll)
+{
+    QTextCursor textCursor(document());
+    textCursor.setPosition(qBound(0, cursor, document()->characterCount() - 1));
+    setTextCursor(textCursor);
+    m_pendingScroll = std::max(0, scroll);
+    if (isVisible())
+        applyPendingScroll();
+}
+
 void EditorView::focusOutEvent(QFocusEvent *event)
 {
     saveNow();
@@ -88,6 +106,22 @@ void EditorView::resizeEvent(QResizeEvent *event)
 {
     QPlainTextEdit::resizeEvent(event);
     updateMargins();
+}
+
+void EditorView::showEvent(QShowEvent *event)
+{
+    QPlainTextEdit::showEvent(event);
+    // Wait for the first layout, so the scroll bar has its real range.
+    if (m_pendingScroll >= 0)
+        QTimer::singleShot(0, this, &EditorView::applyPendingScroll);
+}
+
+void EditorView::applyPendingScroll()
+{
+    if (m_pendingScroll < 0)
+        return;
+    verticalScrollBar()->setValue(m_pendingScroll);
+    m_pendingScroll = -1;
 }
 
 void EditorView::updateMargins()

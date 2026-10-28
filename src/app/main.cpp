@@ -4,6 +4,7 @@
 #include "core/Database.h"
 #include "core/NoteStore.h"
 #include "core/Schema.h"
+#include "core/Session.h"
 #include "ui/MainWindow.h"
 
 #include <QApplication>
@@ -65,6 +66,7 @@ int main(int argc, char *argv[])
     }
 
     inkwell::MainWindow window(store, writer);
+    window.restoreSession(inkwell::session::load(db));
     window.show();
     return QApplication::exec();
 }

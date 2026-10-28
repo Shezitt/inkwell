@@ -26,3 +26,5 @@ inkwell_add_test(tst_pagetreemodel SOURCES tst_pagetreemodel.cpp LIBRARIES inkwe
 inkwell_add_test(tst_autosavetimer SOURCES tst_autosavetimer.cpp LIBRARIES inkwell_core)
 inkwell_add_test(tst_editorview SOURCES tst_editorview.cpp TestNotebook.h LIBRARIES inkwell_ui)
 inkwell_add_test(tst_editorarea SOURCES tst_editorarea.cpp TestNotebook.h LIBRARIES inkwell_ui)
+inkwell_add_test(tst_session SOURCES tst_session.cpp LIBRARIES inkwell_core)
+inkwell_add_test(tst_mainwindow SOURCES tst_mainwindow.cpp TestNotebook.h LIBRARIES inkwell_ui)

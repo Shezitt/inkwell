@@ -41,6 +41,27 @@ private slots:
         QVERIFY(names.contains(u"folders"_s));
         QVERIFY(names.contains(u"pages"_s));
         QVERIFY(names.contains(u"page_content"_s));
+        QVERIFY(names.contains(u"session_tabs"_s));
+        QVERIFY(names.contains(u"session_values"_s));
+    }
+
+    void upgradesOlderDatabasesKeepingNotes()
+    {
+        // Recreate a version 1 database: same tables, minus the session ones.
+        Database db;
+        QVERIFY(db.open(u":memory:"_s));
+        QVERIFY(schema::migrate(db));
+        QVERIFY(db.exec(u"DROP TABLE session_tabs"_s));
+        QVERIFY(db.exec(u"DROP TABLE session_values"_s));
+        QVERIFY(db.exec(u"PRAGMA user_version = 1"_s));
+        QVERIFY(db.exec(u"INSERT INTO folders VALUES (1, NULL, 'kept', 0, 0, 0)"_s));
+
+        QVERIFY(schema::migrate(db));
+        QCOMPARE(schema::version(db), schema::latestVersion());
+        QVERIFY(tables(db).contains(u"session_tabs"_s));
+        QSqlQuery query(db.connection());
+        QVERIFY(query.exec(u"SELECT name FROM folders"_s) && query.next());
+        QCOMPARE(query.value(0).toString(), u"kept"_s);
     }
 
     void migrationIsIdempotent()

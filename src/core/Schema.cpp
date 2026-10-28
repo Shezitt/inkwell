@@ -52,6 +52,19 @@ const QList<Migration> &migrations()
                 "  page_id INTEGER PRIMARY KEY REFERENCES pages(id) ON DELETE CASCADE,"
                 "  body    TEXT NOT NULL DEFAULT '')"_s,
             }},
+        {2,
+            {
+                // Open tabs, in order. Deleting a page closes its tab.
+                u"CREATE TABLE session_tabs ("
+                "  position INTEGER PRIMARY KEY,"
+                "  page_id  INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,"
+                "  cursor   INTEGER NOT NULL DEFAULT 0,"
+                "  scroll   INTEGER NOT NULL DEFAULT 0)"_s,
+                // Everything else about the last session (window layout, ...).
+                u"CREATE TABLE session_values ("
+                "  key   TEXT PRIMARY KEY,"
+                "  value BLOB)"_s,
+            }},
     };
     return list;
 }

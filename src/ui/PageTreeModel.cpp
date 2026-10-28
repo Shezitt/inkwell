@@ -10,6 +10,7 @@
 #include <QStyle>
 
 #include <algorithm>
+#include <functional>
 #include <limits>
 
 using namespace Qt::StringLiterals;
@@ -273,6 +274,24 @@ QList<PageId> PageTreeModel::pagesUnder(const QModelIndex &index) const
     QList<PageId> result;
     if (const Node *node = nodeFor(index))
         collectPages(node, result);
+    return result;
+}
+
+QList<PageTreeModel::PageEntry> PageTreeModel::pageEntries() const
+{
+    QList<PageEntry> result;
+    result.reserve(m_pages.size());
+    const std::function<void(const Node *, const QString &)> visit = [&](const Node *folder,
+                                                                         const QString &path) {
+        for (const auto &child : folder->children) {
+            if (child->kind == Kind::Page) {
+                result.append({child->id, child->name, path});
+            } else {
+                visit(child.get(), path.isEmpty() ? child->name : path + u" / "_s + child->name);
+            }
+        }
+    };
+    visit(m_root.get(), {});
     return result;
 }
 

@@ -33,6 +33,14 @@ public:
     Q_ENUM(Kind)
     enum Role { KindRole = Qt::UserRole + 1, IdRole };
 
+    struct PageEntry
+    {
+        PageId id = 0;
+        QString title;
+        /// Names of the folders from the top level down, joined by " / ".
+        QString folderPath;
+    };
+
     explicit PageTreeModel(NoteStore &store, QObject *parent = nullptr);
     ~PageTreeModel() override;
 
@@ -70,6 +78,8 @@ public:
     [[nodiscard]] QString pageTitle(PageId id) const;
     /// Ids of all pages in the subtree rooted at @p index (inclusive).
     [[nodiscard]] QList<PageId> pagesUnder(const QModelIndex &index) const;
+    /// Every page with the path of its folder, in the order of the tree.
+    [[nodiscard]] QList<PageEntry> pageEntries() const;
 
     /// Creates a folder (kNoFolder parent for top level) and returns its index.
     QModelIndex createFolder(FolderId parentId, const QString &name);

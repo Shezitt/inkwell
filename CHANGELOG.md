@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Reorder pages and folders, or move them into another folder, by dragging
+  them in the sidebar.
+- Move Up (Ctrl+Shift+Up) and Move Down (Ctrl+Shift+Down) for the selected
+  page or folder, also in the sidebar's context menu.
+
 ## [0.1.1] - 2026-10-28
 
 ### Fixed

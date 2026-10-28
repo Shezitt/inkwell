@@ -104,7 +104,13 @@ MainWindow::MainWindow(NoteStore &store, BackgroundWriter &writer, QWidget *pare
     resize(1100, 720);
 }
 
-MainWindow::~MainWindow() = default;
+MainWindow::~MainWindow()
+{
+    // The editors are destroyed with the child widgets, after this destructor,
+    // and still hand over unsaved text then, which changes their save state.
+    // By that time this object is no longer a MainWindow: stop listening first.
+    disconnect(m_editors, nullptr, this, nullptr);
+}
 
 void MainWindow::restoreSession(const SessionState &state)
 {

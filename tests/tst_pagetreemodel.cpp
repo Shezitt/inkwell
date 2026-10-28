@@ -5,6 +5,7 @@
 #include "ui/PageTreeModel.h"
 
 #include <QAbstractItemModelTester>
+#include <QMimeData>
 #include <QSignalSpy>
 #include <QTest>
 
@@ -34,6 +35,15 @@ private:
     }
 
     QString nameAt(const QModelIndex &index) { return index.data().toString(); }
+
+    /// Names of the children of @p parent, in row order.
+    QStringList namesUnder(const QModelIndex &parent = {})
+    {
+        QStringList names;
+        for (int row = 0; row < m_model->rowCount(parent); ++row)
+            names.append(nameAt(m_model->index(row, 0, parent)));
+        return names;
+    }
 
 private slots:
     void init()
@@ -181,6 +191,188 @@ private slots:
         // A new top-level folder lands after the remaining one.
         m_model->createFolder(kNoFolder, u"New"_s);
         QCOMPARE(nameAt(m_model->index(1, 0)), u"New"_s);
+    }
+
+    void movesPagesWithinFolder()
+    {
+        createModel();
+        const FolderId folder = PageTreeModel::id(m_model->createFolder(kNoFolder, u"F"_s));
+        m_model->createFolder(folder, u"Sub"_s);
+        const PageId a = PageTreeModel::id(m_model->createPage(folder, u"a"_s));
+        m_model->createPage(folder, u"b"_s);
+        const PageId c = PageTreeModel::id(m_model->createPage(folder, u"c"_s));
+        const QModelIndex parent = m_model->folderIndex(folder);
+
+        QVERIFY(m_model->move(m_model->pageIndex(c), folder, 0));
+        QCOMPARE(namesUnder(parent), (QStringList {u"Sub"_s, u"c"_s, u"a"_s, u"b"_s}));
+        QVERIFY(m_model->move(m_model->pageIndex(a), folder, 2));
+        QCOMPARE(namesUnder(parent), (QStringList {u"Sub"_s, u"c"_s, u"b"_s, u"a"_s}));
+
+        // Moving to where it already is changes nothing.
+        QSignalSpy moved(m_model.get(), &QAbstractItemModel::rowsMoved);
+        QVERIFY(m_model->move(m_model->pageIndex(a), folder, 2));
+        QCOMPARE(moved.size(), 0);
+
+        // The order is stored.
+        createModel();
+        QCOMPARE(namesUnder(m_model->folderIndex(folder)),
+            (QStringList {u"Sub"_s, u"c"_s, u"b"_s, u"a"_s}));
+    }
+
+    void movesPagesAndFoldersBetweenFolders()
+    {
+        createModel();
+        const FolderId from = PageTreeModel::id(m_model->createFolder(kNoFolder, u"From"_s));
+        const FolderId to = PageTreeModel::id(m_model->createFolder(kNoFolder, u"To"_s));
+        m_model->createFolder(to, u"ToSub"_s);
+        m_model->createPage(to, u"x"_s);
+        const PageId page = PageTreeModel::id(m_model->createPage(from, u"page"_s));
+        const FolderId sub = PageTreeModel::id(m_model->createFolder(from, u"Sub"_s));
+        m_model->createPage(sub, u"deep"_s);
+
+        // A page keeps coming after the subfolders, whatever position it asks for.
+        const QPersistentModelIndex pageIndex = m_model->pageIndex(page);
+        QVERIFY(m_model->move(pageIndex, to, 0));
+        QCOMPARE(
+            namesUnder(m_model->folderIndex(to)), (QStringList {u"ToSub"_s, u"page"_s, u"x"_s}));
+        QCOMPARE(pageIndex, QPersistentModelIndex(m_model->pageIndex(page)));
+        QCOMPARE(m_model->containingFolder(pageIndex), to);
+
+        // A folder takes its content along, and goes among the subfolders.
+        QVERIFY(m_model->move(m_model->folderIndex(sub), to, 5));
+        QCOMPARE(namesUnder(m_model->folderIndex(to)),
+            (QStringList {u"ToSub"_s, u"Sub"_s, u"page"_s, u"x"_s}));
+        QCOMPARE(namesUnder(m_model->folderIndex(sub)), QStringList {u"deep"_s});
+        QVERIFY(namesUnder(m_model->folderIndex(from)).isEmpty());
+
+        // Up to the top level, first.
+        QVERIFY(m_model->move(m_model->folderIndex(sub), kNoFolder, 0));
+        QCOMPARE(namesUnder(), (QStringList {u"Sub"_s, u"From"_s, u"To"_s}));
+        QCOMPARE(m_model->firstFolder(), sub);
+
+        createModel();
+        QCOMPARE(namesUnder(), (QStringList {u"Sub"_s, u"From"_s, u"To"_s}));
+        QCOMPARE(
+            namesUnder(m_model->folderIndex(to)), (QStringList {u"ToSub"_s, u"page"_s, u"x"_s}));
+    }
+
+    void refusesImpossibleMoves()
+    {
+        createModel();
+        const FolderId root = PageTreeModel::id(m_model->createFolder(kNoFolder, u"Root"_s));
+        const FolderId child = PageTreeModel::id(m_model->createFolder(root, u"Child"_s));
+        const PageId page = PageTreeModel::id(m_model->createPage(root, u"page"_s));
+        QSignalSpy moved(m_model.get(), &QAbstractItemModel::rowsMoved);
+        QSignalSpy errors(m_model.get(), &PageTreeModel::errorOccurred);
+
+        QVERIFY(!m_model->move(m_model->pageIndex(page), kNoFolder, 0));
+        QVERIFY(!m_model->move(m_model->folderIndex(root), root, 0));
+        QVERIFY(!m_model->move(m_model->folderIndex(root), child, 0));
+        QVERIFY(!m_model->move(m_model->pageIndex(page), 4242, 0));
+        QVERIFY(!m_model->move({}, root, 0));
+        QCOMPARE(moved.size(), 0);
+        QCOMPARE(errors.size(), 0); // all rejected before reaching the store
+        QCOMPARE(namesUnder(m_model->folderIndex(root)), (QStringList {u"Child"_s, u"page"_s}));
+    }
+
+    void shiftsItemsWithinTheirFolder()
+    {
+        createModel();
+        const FolderId a = PageTreeModel::id(m_model->createFolder(kNoFolder, u"A"_s));
+        const FolderId b = PageTreeModel::id(m_model->createFolder(kNoFolder, u"B"_s));
+        const FolderId sub = PageTreeModel::id(m_model->createFolder(a, u"Sub"_s));
+        const PageId p1 = PageTreeModel::id(m_model->createPage(a, u"p1"_s));
+        const PageId p2 = PageTreeModel::id(m_model->createPage(a, u"p2"_s));
+        const QModelIndex aIndex = m_model->folderIndex(a);
+
+        // The first page cannot move up past the subfolders, nor the last one down.
+        QVERIFY(!m_model->canShift(m_model->pageIndex(p1), -1));
+        QVERIFY(!m_model->canShift(m_model->pageIndex(p2), 1));
+        QVERIFY(!m_model->canShift(m_model->folderIndex(sub), 1));
+        QVERIFY(!m_model->canShift(m_model->pageIndex(p1), 0));
+        QVERIFY(!m_model->canShift({}, 1));
+        QVERIFY(!m_model->shift(m_model->pageIndex(p2), 1));
+
+        QVERIFY(m_model->canShift(m_model->pageIndex(p2), -1));
+        QVERIFY(m_model->shift(m_model->pageIndex(p2), -1));
+        QCOMPARE(namesUnder(aIndex), (QStringList {u"Sub"_s, u"p2"_s, u"p1"_s}));
+
+        QVERIFY(m_model->shift(m_model->folderIndex(b), -1));
+        QCOMPARE(namesUnder(), (QStringList {u"B"_s, u"A"_s}));
+
+        createModel();
+        QCOMPARE(namesUnder(), (QStringList {u"B"_s, u"A"_s}));
+        QCOMPARE(namesUnder(m_model->folderIndex(a)), (QStringList {u"Sub"_s, u"p2"_s, u"p1"_s}));
+    }
+
+    void dragsAndDropsItems()
+    {
+        createModel();
+        const FolderId a = PageTreeModel::id(m_model->createFolder(kNoFolder, u"A"_s));
+        const FolderId b = PageTreeModel::id(m_model->createFolder(kNoFolder, u"B"_s));
+        const PageId p1 = PageTreeModel::id(m_model->createPage(a, u"p1"_s));
+        m_model->createPage(a, u"p2"_s);
+        m_model->createPage(a, u"p3"_s);
+        const QModelIndex aIndex = m_model->folderIndex(a);
+        const QModelIndex bIndex = m_model->folderIndex(b);
+
+        QVERIFY(m_model->flags(m_model->pageIndex(p1)).testFlag(Qt::ItemIsDragEnabled));
+        QVERIFY(!m_model->flags(m_model->pageIndex(p1)).testFlag(Qt::ItemIsDropEnabled));
+        QVERIFY(m_model->flags(aIndex).testFlag(Qt::ItemIsDropEnabled));
+        QVERIFY(m_model->flags({}).testFlag(Qt::ItemIsDropEnabled));
+
+        auto drag = [this](const QModelIndex &index) {
+            return std::unique_ptr<QMimeData>(m_model->mimeData({index}));
+        };
+
+        // Between p2 and p3: rows count from before the move.
+        std::unique_ptr<QMimeData> data = drag(m_model->pageIndex(p1));
+        QVERIFY(m_model->canDropMimeData(data.get(), Qt::MoveAction, 2, 0, aIndex));
+        QVERIFY(m_model->dropMimeData(data.get(), Qt::MoveAction, 2, 0, aIndex));
+        QCOMPARE(namesUnder(aIndex), (QStringList {u"p2"_s, u"p1"_s, u"p3"_s}));
+
+        // Onto a folder: appended there.
+        data = drag(m_model->pageIndex(p1));
+        QVERIFY(m_model->dropMimeData(data.get(), Qt::MoveAction, -1, -1, bIndex));
+        QCOMPARE(namesUnder(bIndex), QStringList {u"p1"_s});
+
+        // A folder between top-level folders, and into another folder.
+        data = drag(bIndex);
+        QVERIFY(m_model->dropMimeData(data.get(), Qt::MoveAction, 0, 0, {}));
+        QCOMPARE(namesUnder(), (QStringList {u"B"_s, u"A"_s}));
+        data = drag(m_model->folderIndex(b));
+        QVERIFY(m_model->dropMimeData(data.get(), Qt::MoveAction, -1, -1, m_model->folderIndex(a)));
+        QCOMPARE(namesUnder(), QStringList {u"A"_s});
+        QCOMPARE(namesUnder(m_model->folderIndex(a)), (QStringList {u"B"_s, u"p2"_s, u"p3"_s}));
+    }
+
+    void refusesImpossibleDrops()
+    {
+        createModel();
+        const FolderId root = PageTreeModel::id(m_model->createFolder(kNoFolder, u"Root"_s));
+        const FolderId child = PageTreeModel::id(m_model->createFolder(root, u"Child"_s));
+        const PageId page = PageTreeModel::id(m_model->createPage(root, u"page"_s));
+        const std::unique_ptr<QMimeData> pageData(m_model->mimeData({m_model->pageIndex(page)}));
+        const std::unique_ptr<QMimeData> rootData(m_model->mimeData({m_model->folderIndex(root)}));
+        const QModelIndex childIndex = m_model->folderIndex(child);
+
+        QVERIFY(!m_model->canDropMimeData(pageData.get(), Qt::MoveAction, 0, 0, {}));
+        QVERIFY(!m_model->canDropMimeData(rootData.get(), Qt::MoveAction, -1, -1, childIndex));
+        QVERIFY(!m_model->canDropMimeData(
+            rootData.get(), Qt::MoveAction, -1, -1, m_model->folderIndex(root)));
+        QVERIFY(!m_model->canDropMimeData(
+            pageData.get(), Qt::MoveAction, -1, -1, m_model->pageIndex(page)));
+        QVERIFY(!m_model->canDropMimeData(pageData.get(), Qt::CopyAction, -1, -1, childIndex));
+        QMimeData foreign;
+        foreign.setText(u"page"_s);
+        QVERIFY(!m_model->canDropMimeData(&foreign, Qt::MoveAction, -1, -1, childIndex));
+        QVERIFY(!m_model->dropMimeData(rootData.get(), Qt::MoveAction, -1, -1, childIndex));
+        QVERIFY(!m_model->dropMimeData(&foreign, Qt::MoveAction, -1, -1, childIndex));
+
+        // A page deleted while it was being dragged cannot be dropped.
+        QVERIFY(m_model->remove(m_model->pageIndex(page)));
+        QVERIFY(!m_model->dropMimeData(pageData.get(), Qt::MoveAction, -1, -1, childIndex));
+        QCOMPARE(namesUnder(m_model->folderIndex(root)), QStringList {u"Child"_s});
     }
 
     void reportsStoreErrors()

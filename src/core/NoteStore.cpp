@@ -8,6 +8,8 @@
 #include <QSqlError>
 #include <QSqlQuery>
 
+#include <algorithm>
+
 using namespace Qt::StringLiterals;
 
 namespace inkwell {
@@ -127,6 +129,33 @@ bool NoteStore::deleteFolder(FolderId id)
     return remove(u"folders"_s, id);
 }
 
+bool NoteStore::moveFolder(FolderId id, FolderId parentId, int index)
+{
+    Transaction tx(m_db);
+    if (!tx.isActive())
+        return fail(m_db.lastError());
+
+    if (parentId != kNoFolder) {
+        // Walk up from the new parent; meeting the folder would create a cycle.
+        QSqlQuery query(m_db.connection());
+        query.prepare(u"WITH RECURSIVE ancestors(id) AS ("
+                      " SELECT ? UNION ALL"
+                      " SELECT f.parent_id FROM folders f JOIN ancestors a ON f.id = a.id"
+                      " WHERE f.parent_id IS NOT NULL)"
+                      " SELECT 1 FROM ancestors WHERE id = ?"_s);
+        query.addBindValue(parentId);
+        query.addBindValue(id);
+        if (!query.exec())
+            return fail(query.lastError().text());
+        if (query.next())
+            return fail(u"cannot move a folder into itself"_s);
+    }
+
+    if (!place(u"folders"_s, u"parent_id"_s, id, parentId, index))
+        return false;
+    return tx.commit() || fail(m_db.lastError());
+}
+
 std::optional<Page> NoteStore::createPage(FolderId folderId, const QString &title)
 {
     Page page;
@@ -189,6 +218,16 @@ bool NoteStore::renamePage(PageId id, const QString &title)
 bool NoteStore::deletePage(PageId id)
 {
     return remove(u"pages"_s, id);
+}
+
+bool NoteStore::movePage(PageId id, FolderId folderId, int index)
+{
+    Transaction tx(m_db);
+    if (!tx.isActive())
+        return fail(m_db.lastError());
+    if (!place(u"pages"_s, u"folder_id"_s, id, folderId, index))
+        return false;
+    return tx.commit() || fail(m_db.lastError());
 }
 
 bool NoteStore::pageExists(PageId id) const
@@ -265,6 +304,42 @@ bool NoteStore::remove(const QString &table, qint64 id)
     if (!query.exec())
         return fail(query.lastError().text());
     return query.numRowsAffected() == 1 || fail(u"no row %1 in %2"_s.arg(id).arg(table));
+}
+
+/// Puts row @p id under @p parentId at @p index among its new siblings and
+/// renumbers them, so positions stay dense. Must run inside a transaction.
+bool NoteStore::place(
+    const QString &table, const QString &parentColumn, qint64 id, qint64 parentId, int index)
+{
+    QSqlQuery query(m_db.connection());
+    query.prepare(u"SELECT 1 FROM %1 WHERE id = ?"_s.arg(table));
+    query.addBindValue(id);
+    if (!query.exec())
+        return fail(query.lastError().text());
+    if (!query.next())
+        return fail(u"no row %1 in %2"_s.arg(id).arg(table));
+
+    QList<qint64> order;
+    query.prepare(u"SELECT id FROM %1 WHERE %2 IS ? AND id != ? ORDER BY position, id"_s.arg(
+        table, parentColumn));
+    query.addBindValue(nullableId(parentId));
+    query.addBindValue(id);
+    if (!query.exec())
+        return fail(query.lastError().text());
+    while (query.next())
+        order.append(query.value(0).toLongLong());
+    order.insert(std::clamp(qsizetype(index), qsizetype(0), order.size()), id);
+
+    query.prepare(u"UPDATE %1 SET %2 = ?, position = ? WHERE id = ?"_s.arg(table, parentColumn));
+    for (qsizetype position = 0; position < order.size(); ++position) {
+        query.addBindValue(nullableId(parentId));
+        query.addBindValue(int(position));
+        query.addBindValue(order.at(position));
+        // A parent that does not exist fails here, on the foreign key.
+        if (!query.exec())
+            return fail(query.lastError().text());
+    }
+    return true;
 }
 
 bool NoteStore::fail(const QString &message) const

@@ -23,6 +23,9 @@ written in C++20 with Qt 6.
 
 - **Nested folders and pages.** Organise notes in a tree of folders of any
   depth, Notion style. Every page lives in a folder.
+- **Your order, not the alphabet's.** Drag pages and folders to reorder them or
+  to move them into another folder, or nudge the selected one with
+  <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd>.
 - **Tabs.** Open as many pages as you like side by side, reorder them, and
   switch with <kbd>Ctrl</kbd>+<kbd>Tab</kbd>.
 - **Autosave you never have to think about.** There's no Save button to
@@ -101,6 +104,7 @@ for instance on a synced folder, start Inkwell with
 | New folder                 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd>     |
 | Rename (in the sidebar)    | <kbd>F2</kbd>                                    |
 | Delete (in the sidebar)    | <kbd>Delete</kbd>                                |
+| Move up / down (in the sidebar) | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>↑</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>↓</kbd> |
 | Save now                   | <kbd>Ctrl</kbd>+<kbd>S</kbd> (optional)          |
 | Close tab                  | <kbd>Ctrl</kbd>+<kbd>W</kbd>                     |
 | Next / previous tab        | <kbd>Ctrl</kbd>+<kbd>Tab</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Tab</kbd> |
@@ -111,7 +115,7 @@ for instance on a synced folder, start Inkwell with
 v0.1 lays the foundation. Ideas for what comes next:
 
 - [ ] Full-text search across all pages (SQLite FTS5)
-- [ ] Drag and drop to move pages and folders
+- [x] Drag and drop to reorder and move pages and folders
 - [ ] Markdown syntax highlighting and live preview
 - [ ] Trash with undo, instead of permanent delete
 - [ ] Quick switcher (<kbd>Ctrl</kbd>+<kbd>P</kbd>) to open pages by name

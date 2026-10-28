@@ -9,6 +9,7 @@
 #include <QList>
 
 #include <memory>
+#include <utility>
 #include <vector>
 
 namespace inkwell {
@@ -46,6 +47,16 @@ public:
     bool setData(const QModelIndex &index, const QVariant &value, int role = Qt::EditRole) override;
     Qt::ItemFlags flags(const QModelIndex &index) const override;
 
+    // Drag and drop within the tree. Only moves are supported.
+    Qt::DropActions supportedDragActions() const override { return Qt::MoveAction; }
+    Qt::DropActions supportedDropActions() const override { return Qt::MoveAction; }
+    QStringList mimeTypes() const override;
+    QMimeData *mimeData(const QModelIndexList &indexes) const override;
+    bool canDropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column,
+        const QModelIndex &parent) const override;
+    bool dropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column,
+        const QModelIndex &parent) override;
+
     [[nodiscard]] QModelIndex folderIndex(FolderId id) const;
     [[nodiscard]] QModelIndex pageIndex(PageId id) const;
     [[nodiscard]] static Kind kind(const QModelIndex &index);
@@ -67,6 +78,16 @@ public:
     bool rename(const QModelIndex &index, const QString &name);
     /// Deletes a page, or a folder with everything inside it.
     bool remove(const QModelIndex &index);
+    /// Moves a page or folder into @p folderId (kNoFolder: top level, folders
+    /// only), so that it ends up at @p position among the pages, or among the
+    /// subfolders, there. Returns false, changing nothing, if the move is not
+    /// possible.
+    bool move(const QModelIndex &index, FolderId folderId, int position);
+    /// Whether shift() can move the item @p delta places within its folder.
+    [[nodiscard]] bool canShift(const QModelIndex &index, int delta) const;
+    /// Moves an item @p delta places up (negative) or down among its siblings
+    /// of the same kind, staying in its folder.
+    bool shift(const QModelIndex &index, int delta);
 
 signals:
     void pageRenamed(inkwell::PageId id, const QString &title);
@@ -78,6 +99,11 @@ private:
     struct Node;
 
     [[nodiscard]] Node *nodeFor(const QModelIndex &index) const;
+    /// Position of @p node among its parent's folders or pages, and how many there are.
+    [[nodiscard]] static std::pair<int, int> positionInBlock(const Node *node);
+    [[nodiscard]] Node *draggedNode(const QMimeData *data) const;
+    /// The folder (or the root) that a drop on @p parent goes into, if @p node may go there.
+    [[nodiscard]] Node *dropTarget(const Node *node, const QModelIndex &parent) const;
     [[nodiscard]] QModelIndex indexFor(const Node *node) const;
     void collectPages(const Node *node, QList<PageId> &out) const;
     void forget(const Node *node);

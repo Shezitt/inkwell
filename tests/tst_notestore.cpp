@@ -18,6 +18,28 @@ void expectWarning()
     QTest::ignoreMessage(QtWarningMsg, QRegularExpression(u".*"_s));
 }
 
+/// Titles of the pages in @p folder, in stored order.
+QStringList pageTitles(const NoteStore &store, FolderId folder)
+{
+    QStringList titles;
+    for (const Page &page : store.pages()) {
+        if (page.folderId == folder)
+            titles.append(page.title);
+    }
+    return titles;
+}
+
+/// Names of the subfolders of @p parent, in stored order.
+QStringList folderNames(const NoteStore &store, FolderId parent)
+{
+    QStringList names;
+    for (const Folder &folder : store.folders()) {
+        if (folder.parentId == parent)
+            names.append(folder.name);
+    }
+    return names;
+}
+
 } // namespace
 
 class TestNoteStore : public QObject
@@ -201,6 +223,108 @@ private slots:
 
         QCOMPARE(m_store->folders(), QList<Folder> {*keep});
         QCOMPARE(m_store->pages(), QList<Page> {*kept});
+    }
+
+    void reordersPagesWithinFolder()
+    {
+        const auto folder = m_store->createFolder(kNoFolder, u"F"_s);
+        m_store->createPage(folder->id, u"a"_s);
+        m_store->createPage(folder->id, u"b"_s);
+        const auto c = m_store->createPage(folder->id, u"c"_s);
+
+        QVERIFY(m_store->movePage(c->id, folder->id, 0));
+        QCOMPARE(pageTitles(*m_store, folder->id), (QStringList {u"c"_s, u"a"_s, u"b"_s}));
+        QVERIFY(m_store->movePage(c->id, folder->id, 1));
+        QCOMPARE(pageTitles(*m_store, folder->id), (QStringList {u"a"_s, u"c"_s, u"b"_s}));
+
+        // Positions stay dense, so new pages still go to the end.
+        QList<int> positions;
+        for (const Page &page : m_store->pages())
+            positions.append(page.position);
+        QCOMPARE(positions, (QList<int> {0, 1, 2}));
+        QCOMPARE(m_store->createPage(folder->id, u"d"_s)->position, 3);
+    }
+
+    void movesPagesBetweenFolders()
+    {
+        const auto from = m_store->createFolder(kNoFolder, u"From"_s);
+        const auto to = m_store->createFolder(kNoFolder, u"To"_s);
+        const auto moved = m_store->createPage(from->id, u"moved"_s);
+        m_store->createPage(from->id, u"stays"_s);
+        m_store->createPage(to->id, u"x"_s);
+        m_store->createPage(to->id, u"y"_s);
+        m_store->setPageBody(moved->id, u"body"_s);
+
+        QVERIFY(m_store->movePage(moved->id, to->id, 1));
+        QCOMPARE(pageTitles(*m_store, from->id), QStringList {u"stays"_s});
+        QCOMPARE(pageTitles(*m_store, to->id), (QStringList {u"x"_s, u"moved"_s, u"y"_s}));
+        QCOMPARE(m_store->pageBody(moved->id), u"body"_s);
+
+        // Out-of-range indexes are clamped.
+        QVERIFY(m_store->movePage(moved->id, to->id, 99));
+        QCOMPARE(pageTitles(*m_store, to->id), (QStringList {u"x"_s, u"y"_s, u"moved"_s}));
+        QVERIFY(m_store->movePage(moved->id, to->id, -5));
+        QCOMPARE(pageTitles(*m_store, to->id), (QStringList {u"moved"_s, u"x"_s, u"y"_s}));
+    }
+
+    void movesFolders()
+    {
+        const auto a = m_store->createFolder(kNoFolder, u"A"_s);
+        m_store->createFolder(kNoFolder, u"B"_s);
+        const auto c = m_store->createFolder(kNoFolder, u"C"_s);
+        const auto page = m_store->createPage(c->id, u"inside"_s);
+
+        QVERIFY(m_store->moveFolder(c->id, kNoFolder, 0));
+        QCOMPARE(folderNames(*m_store, kNoFolder), (QStringList {u"C"_s, u"A"_s, u"B"_s}));
+
+        // Nesting takes the folder's whole content along.
+        QVERIFY(m_store->moveFolder(c->id, a->id, 0));
+        QCOMPARE(folderNames(*m_store, kNoFolder), (QStringList {u"A"_s, u"B"_s}));
+        QCOMPARE(folderNames(*m_store, a->id), QStringList {u"C"_s});
+        QCOMPARE(pageTitles(*m_store, c->id), QStringList {u"inside"_s});
+        QVERIFY(m_store->pageExists(page->id));
+
+        // And back out to the top level.
+        QVERIFY(m_store->moveFolder(c->id, kNoFolder, 1));
+        QCOMPARE(folderNames(*m_store, kNoFolder), (QStringList {u"A"_s, u"C"_s, u"B"_s}));
+        QVERIFY(folderNames(*m_store, a->id).isEmpty());
+    }
+
+    void refusesToMoveFolderIntoItself()
+    {
+        const auto root = m_store->createFolder(kNoFolder, u"Root"_s);
+        const auto child = m_store->createFolder(root->id, u"Child"_s);
+        const auto grandchild = m_store->createFolder(child->id, u"Grandchild"_s);
+        const QList<Folder> before = m_store->folders();
+
+        expectWarning();
+        QVERIFY(!m_store->moveFolder(root->id, root->id, 0));
+        expectWarning();
+        QVERIFY(!m_store->moveFolder(root->id, grandchild->id, 0));
+        QVERIFY(!m_store->lastError().isEmpty());
+        QCOMPARE(m_store->folders(), before);
+    }
+
+    void moveFailsForUnknownTargets()
+    {
+        const auto folder = m_store->createFolder(kNoFolder, u"F"_s);
+        const auto page = m_store->createPage(folder->id, u"p"_s);
+        const QList<Page> pagesBefore = m_store->pages();
+        const QList<Folder> foldersBefore = m_store->folders();
+
+        expectWarning();
+        QVERIFY(!m_store->movePage(page->id, 4242, 0));
+        expectWarning();
+        QVERIFY(!m_store->movePage(page->id, kNoFolder, 0)); // pages need a folder
+        expectWarning();
+        QVERIFY(!m_store->movePage(4242, folder->id, 0));
+        expectWarning();
+        QVERIFY(!m_store->moveFolder(folder->id, 4242, 0));
+        expectWarning();
+        QVERIFY(!m_store->moveFolder(4242, kNoFolder, 0));
+
+        QCOMPARE(m_store->pages(), pagesBefore);
+        QCOMPARE(m_store->folders(), foldersBefore);
     }
 };
 

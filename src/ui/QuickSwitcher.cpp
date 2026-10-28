@@ -4,15 +4,12 @@
 #include "core/FuzzyMatch.h"
 
 #include <QApplication>
-#include <QKeyEvent>
-#include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QPainter>
 #include <QStandardItemModel>
 #include <QStyledItemDelegate>
 #include <QTextLayout>
-#include <QVBoxLayout>
 
 #include <algorithm>
 
@@ -26,7 +23,6 @@ enum Role { IdRole = Qt::UserRole + 1, PathRole, MatchRole };
 
 /// Results beyond this are not worth scrolling through; refine the query instead.
 constexpr qsizetype kMaxResults = 100;
-constexpr int kVisibleRows = 10;
 
 /// Draws the title with the matched characters in bold and the folder path,
 /// dimmed, on the right.
@@ -101,78 +97,15 @@ private:
 } // namespace
 
 QuickSwitcher::QuickSwitcher(PageTreeModel *pages, QWidget *parent)
-    : QFrame(parent, Qt::Popup)
+    : SearchPopup(tr("Go to page…"), tr("No matching pages"), parent)
     , m_pages(pages)
-    , m_input(new QLineEdit(this))
-    , m_results(new QListView(this))
-    , m_noResults(new QLabel(tr("No matching pages"), this))
-    , m_model(new QStandardItemModel(this))
 {
-    setFrameShape(QFrame::StyledPanel);
-
-    m_input->setPlaceholderText(tr("Go to page…"));
-    m_input->setClearButtonEnabled(true);
-    m_input->installEventFilter(this);
-    connect(m_input, &QLineEdit::textChanged, this, &QuickSwitcher::updateResults);
-
-    m_results->setModel(m_model);
-    m_results->setItemDelegate(new ResultDelegate(m_results));
-    m_results->setFocusPolicy(Qt::NoFocus); // typing always goes to the input
-    m_results->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_results->setUniformItemSizes(true);
-    m_results->setFrameShape(QFrame::NoFrame);
-    connect(m_results, &QListView::clicked, this, &QuickSwitcher::choose);
-
-    m_noResults->setAlignment(Qt::AlignCenter);
-    m_noResults->setEnabled(false); // drawn in the dimmed text colour
-    m_noResults->setMargin(12);
-
-    auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(6, 6, 6, 6);
-    layout->setSpacing(6);
-    layout->addWidget(m_input);
-    layout->addWidget(m_results);
-    layout->addWidget(m_noResults);
+    results()->setItemDelegate(new ResultDelegate(results()));
 }
 
-void QuickSwitcher::popup(QWidget *window)
+void QuickSwitcher::prepare()
 {
     m_entries = m_pages->pageEntries();
-    m_input->clear();
-    updateResults(); // also when the text was already empty
-
-    const int width = std::clamp(window->width() * 3 / 5, std::min(400, window->width()), 640);
-    setFixedWidth(width);
-    adjustSize();
-    move(window->mapToGlobal(QPoint((window->width() - width) / 2, 48)));
-    show();
-    activateWindow();
-    m_input->setFocus();
-}
-
-bool QuickSwitcher::eventFilter(QObject *watched, QEvent *event)
-{
-    if (watched == m_input && event->type() == QEvent::KeyPress) {
-        auto *key = static_cast<QKeyEvent *>(event);
-        switch (key->key()) {
-        case Qt::Key_Up:
-        case Qt::Key_Down:
-        case Qt::Key_PageUp:
-        case Qt::Key_PageDown:
-            QCoreApplication::sendEvent(m_results, event);
-            return true;
-        case Qt::Key_Return:
-        case Qt::Key_Enter:
-            choose(m_results->currentIndex());
-            return true;
-        case Qt::Key_Escape:
-            close();
-            return true;
-        default:
-            break;
-        }
-    }
-    return QFrame::eventFilter(watched, event);
 }
 
 void QuickSwitcher::updateResults()
@@ -183,7 +116,7 @@ void QuickSwitcher::updateResults()
         FuzzyMatch match;
     };
     QList<Hit> hits;
-    const QString query = m_input->text();
+    const QString query = input()->text();
     for (const PageTreeModel::PageEntry &entry : std::as_const(m_entries)) {
         if (auto match = fuzzyMatch(query, entry.title))
             hits.append({&entry, std::move(*match)});
@@ -194,34 +127,22 @@ void QuickSwitcher::updateResults()
     if (hits.size() > kMaxResults)
         hits.resize(kMaxResults);
 
-    m_model->clear();
+    QStandardItemModel *model = resultsModel();
+    model->clear();
     for (const Hit &hit : std::as_const(hits)) {
         auto *item = new QStandardItem(hit.entry->title);
         item->setData(hit.entry->id, IdRole);
         item->setData(hit.entry->folderPath, PathRole);
         item->setData(QVariant::fromValue(hit.match.positions), MatchRole);
         item->setToolTip(hit.entry->folderPath);
-        m_model->appendRow(item);
+        model->appendRow(item);
     }
-    m_results->setCurrentIndex(m_model->index(0, 0));
-
-    const bool empty = hits.isEmpty();
-    m_results->setVisible(!empty);
-    m_noResults->setVisible(empty);
-    if (!empty) {
-        const auto rows = int(std::min<qsizetype>(hits.size(), kVisibleRows));
-        m_results->setFixedHeight(rows * m_results->sizeHintForRow(0));
-    }
-    adjustSize();
+    resultsChanged();
 }
 
-void QuickSwitcher::choose(const QModelIndex &index)
+void QuickSwitcher::activate(const QModelIndex &index)
 {
-    if (!index.isValid())
-        return;
-    const PageId id = index.data(IdRole).toLongLong();
-    close();
-    emit pageChosen(id);
+    emit pageChosen(index.data(IdRole).toLongLong());
 }
 
 } // namespace inkwell

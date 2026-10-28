@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   page or folder, also in the sidebar's context menu.
 - Quick switcher: File > Go to Page… (Ctrl+P) finds pages by name, with fuzzy
   matching, and opens the chosen one.
+- Full-text search: File > Search in Pages… (Ctrl+Shift+F) finds the pages
+  containing every word typed, ignoring case and accents, and shows the
+  matching line. Choosing a result opens the page at the first match.
 
 ### Fixed
 

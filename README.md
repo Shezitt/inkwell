@@ -31,6 +31,10 @@ written in C++20 with Qt 6.
 - **Quick switcher.** Press <kbd>Ctrl</kbd>+<kbd>P</kbd>, type a few letters
   of a page's name, press <kbd>Enter</kbd>. Matching is fuzzy, so `fbs` finds
   "Feedback for Sav".
+- **Full-text search.** <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> finds the
+  pages containing the words you type, as you type, with the matching line
+  shown. Case and accents don't matter, so `cache` finds "Caché". Pick a result
+  to jump straight to the match.
 - **Autosave you never have to think about.** There's no Save button to
   remember. Edits are written to disk shortly after you pause, and at least
   every two seconds while you type.
@@ -50,7 +54,8 @@ written in C++20 with Qt 6.
 ### Build from source
 
 You need a C++20 compiler, CMake ≥ 3.21 and Qt ≥ 6.4 (Widgets and Sql, with
-the SQLite driver).
+the SQLite driver; its SQLite needs FTS5, which every major distribution
+enables).
 
 <details open>
 <summary>Debian / Ubuntu</summary>
@@ -106,6 +111,7 @@ for instance on a synced folder, start Inkwell with
 | New page                   | <kbd>Ctrl</kbd>+<kbd>N</kbd>                     |
 | New folder                 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd>     |
 | Go to page                 | <kbd>Ctrl</kbd>+<kbd>P</kbd>                     |
+| Search in all pages        | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd>     |
 | Rename (in the sidebar)    | <kbd>F2</kbd>                                    |
 | Delete (in the sidebar)    | <kbd>Delete</kbd>                                |
 | Move up / down (in the sidebar) | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>↑</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>↓</kbd> |
@@ -118,7 +124,7 @@ for instance on a synced folder, start Inkwell with
 
 v0.1 lays the foundation. Ideas for what comes next:
 
-- [ ] Full-text search across all pages (SQLite FTS5)
+- [x] Full-text search across all pages (SQLite FTS5)
 - [x] Drag and drop to reorder and move pages and folders
 - [ ] Markdown syntax highlighting and live preview
 - [ ] Trash with undo, instead of permanent delete

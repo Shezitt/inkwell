@@ -121,6 +121,33 @@ private slots:
         }
     }
 
+    void selectsFirstMatchOfSearchedWords()
+    {
+        EditorView view(m_notebook->newPage(), u"Concatenate.\nLa Caché del procesador. A cat."_s,
+            *m_notebook->writer);
+        const auto selected = [&view] { return view.textCursor().selectedText(); };
+
+        // Case and accents are ignored, as in search.
+        QVERIFY(view.selectFirstMatch({u"CACHE"_s}));
+        QCOMPARE(selected(), u"Caché"_s);
+        QCOMPARE(view.textCursor().selectionStart(), 16);
+
+        // A match at the start of a word beats an earlier one inside a word.
+        QVERIFY(view.selectFirstMatch({u"cat"_s}));
+        QCOMPARE(view.textCursor().selectionStart(), 40);
+
+        // The earliest of several words, with punctuation around them ignored.
+        QVERIFY(view.selectFirstMatch({u"\"procesador\""_s, u"la"_s}));
+        QCOMPARE(selected(), u"La"_s);
+        // Prefixes match, as the last word does in search.
+        QVERIFY(view.selectFirstMatch({u"proc"_s}));
+        QCOMPARE(selected(), u"proc"_s);
+
+        QVERIFY(!view.selectFirstMatch({u"zebra"_s, u"--"_s}));
+        QCOMPARE(selected(), u"proc"_s); // unchanged
+        QVERIFY(!view.selectFirstMatch({}));
+    }
+
     void undoToSavedTextIsClean()
     {
         EditorView view(m_notebook->newPage(), {}, *m_notebook->writer);

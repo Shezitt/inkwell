@@ -19,6 +19,20 @@ constexpr int kMaxTextWidth = 860;
 constexpr int kMinSideMargin = 16;
 constexpr int kTabStopSpaces = 4;
 
+/// Case-folds @p text and strips accents character by character, so that
+/// positions in the result are positions in @p text.
+QString foldForMatching(QStringView text)
+{
+    QString folded(text.size(), Qt::Uninitialized);
+    for (qsizetype i = 0; i < text.size(); ++i) {
+        QChar c = text[i];
+        if (c.unicode() >= 0x80 && c.decompositionTag() == QChar::Canonical)
+            c = c.decomposition().at(0); // "é" decomposes to "e" plus a combining accent
+        folded[i] = c.toCaseFolded();
+    }
+    return folded;
+}
+
 } // namespace
 
 EditorView::EditorView(PageId id, const QString &body, BackgroundWriter &writer, QWidget *parent)
@@ -94,6 +108,49 @@ void EditorView::restoreViewState(int cursor, int scroll)
     m_pendingScroll = std::max(0, scroll);
     if (isVisible())
         applyPendingScroll();
+}
+
+bool EditorView::selectFirstMatch(const QStringList &words)
+{
+    const QString text = foldForMatching(toPlainText());
+    qsizetype bestStart = -1;
+    qsizetype bestLength = 0;
+    bool bestAtWordStart = false;
+    for (const QString &word : words) {
+        // Search ignores punctuation around words, such as quotes.
+        qsizetype first = 0;
+        qsizetype last = word.size();
+        while (first < last && !word[first].isLetterOrNumber())
+            ++first;
+        while (last > first && !word[last - 1].isLetterOrNumber())
+            --last;
+        const QString needle = foldForMatching(QStringView(word).sliced(first, last - first));
+        if (needle.isEmpty())
+            continue;
+
+        for (qsizetype at = text.indexOf(needle); at >= 0; at = text.indexOf(needle, at + 1)) {
+            const bool atWordStart = at == 0 || !text[at - 1].isLetterOrNumber();
+            // A word start anywhere beats a match inside a word; then the earliest wins.
+            if (bestStart < 0 || (atWordStart && !bestAtWordStart)
+                || (atWordStart == bestAtWordStart && at < bestStart)) {
+                bestStart = at;
+                bestLength = needle.size();
+                bestAtWordStart = atWordStart;
+            }
+            if (atWordStart)
+                break; // later ones in the text cannot be better
+        }
+    }
+    if (bestStart < 0)
+        return false;
+
+    QTextCursor cursor(document());
+    cursor.setPosition(int(bestStart));
+    cursor.setPosition(int(bestStart + bestLength), QTextCursor::KeepAnchor);
+    setTextCursor(cursor);
+    // Centre once laid out, which a page that was just opened is not yet.
+    QTimer::singleShot(0, this, &QPlainTextEdit::centerCursor);
+    return true;
 }
 
 void EditorView::focusOutEvent(QFocusEvent *event)

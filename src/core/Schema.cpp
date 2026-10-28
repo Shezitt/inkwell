@@ -65,6 +65,36 @@ const QList<Migration> &migrations()
                 "  key   TEXT PRIMARY KEY,"
                 "  value BLOB)"_s,
             }},
+        {3,
+            {
+                // Full-text index of page titles and bodies; rowid is the page id.
+                // unicode61 with remove_diacritics folds case and accents, so
+                // "cache" finds "Caché". The prefix indexes make search-as-you-type
+                // ("proc*") fast.
+                u"CREATE VIRTUAL TABLE page_search USING fts5("
+                "  title, body,"
+                "  tokenize = 'unicode61 remove_diacritics 2',"
+                "  prefix = '2 3')"_s,
+                u"INSERT INTO page_search (rowid, title, body)"
+                "  SELECT p.id, p.title, c.body FROM pages p JOIN page_content c ON c.page_id = p.id"_s,
+
+                // Triggers keep the index in step with every write, in the same
+                // transaction, so it can never drift from the notes, not even after
+                // a crash. They also fire for pages deleted along with their folder.
+                u"CREATE TRIGGER page_search_add AFTER INSERT ON page_content BEGIN"
+                "  INSERT INTO page_search (rowid, title, body)"
+                "    SELECT id, title, new.body FROM pages WHERE id = new.page_id;"
+                " END"_s,
+                u"CREATE TRIGGER page_search_body AFTER UPDATE OF body ON page_content BEGIN"
+                "  UPDATE page_search SET body = new.body WHERE rowid = new.page_id;"
+                " END"_s,
+                u"CREATE TRIGGER page_search_title AFTER UPDATE OF title ON pages BEGIN"
+                "  UPDATE page_search SET title = new.title WHERE rowid = new.id;"
+                " END"_s,
+                u"CREATE TRIGGER page_search_remove AFTER DELETE ON pages BEGIN"
+                "  DELETE FROM page_search WHERE rowid = old.id;"
+                " END"_s,
+            }},
     };
     return list;
 }

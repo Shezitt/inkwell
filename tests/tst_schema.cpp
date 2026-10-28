@@ -21,6 +21,31 @@ QStringList tables(Database &db)
     return names;
 }
 
+/// Turns a migrated database back into a version 2 one, without the search index.
+bool downgradeToVersion2(Database &db)
+{
+    for (const QString &trigger : {u"page_search_add"_s, u"page_search_body"_s,
+             u"page_search_title"_s, u"page_search_remove"_s}) {
+        if (!db.exec(u"DROP TRIGGER %1"_s.arg(trigger)))
+            return false;
+    }
+    return db.exec(u"DROP TABLE page_search"_s) && db.exec(u"PRAGMA user_version = 2"_s);
+}
+
+/// Ids of the pages whose title or body matches the FTS5 @p query.
+QList<qint64> search(Database &db, const QString &query)
+{
+    QList<qint64> ids;
+    QSqlQuery sql(db.connection());
+    sql.prepare(u"SELECT rowid FROM page_search WHERE page_search MATCH ? ORDER BY rowid"_s);
+    sql.addBindValue(query);
+    if (!sql.exec())
+        return {-1};
+    while (sql.next())
+        ids.append(sql.value(0).toLongLong());
+    return ids;
+}
+
 } // namespace
 
 class TestSchema : public QObject
@@ -43,14 +68,16 @@ private slots:
         QVERIFY(names.contains(u"page_content"_s));
         QVERIFY(names.contains(u"session_tabs"_s));
         QVERIFY(names.contains(u"session_values"_s));
+        QVERIFY(names.contains(u"page_search"_s));
     }
 
     void upgradesOlderDatabasesKeepingNotes()
     {
-        // Recreate a version 1 database: same tables, minus the session ones.
+        // Recreate a version 1 database: same tables, minus the later ones.
         Database db;
         QVERIFY(db.open(u":memory:"_s));
         QVERIFY(schema::migrate(db));
+        QVERIFY(downgradeToVersion2(db));
         QVERIFY(db.exec(u"DROP TABLE session_tabs"_s));
         QVERIFY(db.exec(u"DROP TABLE session_values"_s));
         QVERIFY(db.exec(u"PRAGMA user_version = 1"_s));
@@ -62,6 +89,58 @@ private slots:
         QSqlQuery query(db.connection());
         QVERIFY(query.exec(u"SELECT name FROM folders"_s) && query.next());
         QCOMPARE(query.value(0).toString(), u"kept"_s);
+    }
+
+    void indexesExistingPagesWhenUpgrading()
+    {
+        Database db;
+        QVERIFY(db.open(u":memory:"_s));
+        QVERIFY(schema::migrate(db));
+        QVERIFY(downgradeToVersion2(db));
+        QVERIFY(db.exec(u"INSERT INTO folders VALUES (1, NULL, 'f', 0, 0, 0)"_s));
+        QVERIFY(db.exec(u"INSERT INTO pages VALUES (1, 1, 'Robot trials', 0, 0, 0)"_s));
+        QVERIFY(db.exec(u"INSERT INTO page_content VALUES (1, 'the gripper opened')"_s));
+        QVERIFY(db.exec(u"INSERT INTO pages VALUES (2, 1, 'Groceries', 0, 0, 0)"_s));
+        QVERIFY(db.exec(u"INSERT INTO page_content VALUES (2, 'milk')"_s));
+
+        QVERIFY(schema::migrate(db));
+        QCOMPARE(search(db, u"gripper"_s), QList<qint64> {1});
+        QCOMPARE(search(db, u"title:groceries"_s), QList<qint64> {2});
+    }
+
+    void searchIndexFollowsEveryChange()
+    {
+        Database db;
+        QVERIFY(db.open(u":memory:"_s));
+        QVERIFY(schema::migrate(db));
+        QVERIFY(db.exec(u"INSERT INTO folders VALUES (1, NULL, 'root', 0, 0, 0)"_s));
+        QVERIFY(db.exec(u"INSERT INTO folders VALUES (2, 1, 'child', 0, 0, 0)"_s));
+        QVERIFY(db.exec(u"INSERT INTO pages VALUES (1, 2, 'Tema 5', 0, 0, 0)"_s));
+        QVERIFY(db.exec(u"INSERT INTO page_content VALUES (1, 'La caché del procesador')"_s));
+        QVERIFY(db.exec(u"INSERT INTO pages VALUES (2, 1, 'Other', 0, 0, 0)"_s));
+        QVERIFY(db.exec(u"INSERT INTO page_content VALUES (2, '')"_s));
+
+        // New pages, ignoring case and accents, and word prefixes.
+        QCOMPARE(search(db, u"CACHE"_s), QList<qint64> {1});
+        QCOMPARE(search(db, u"proc*"_s), QList<qint64> {1});
+        QCOMPARE(search(db, u"tema"_s), QList<qint64> {1});
+
+        QVERIFY(db.exec(u"UPDATE page_content SET body = 'memoria virtual' WHERE page_id = 1"_s));
+        QVERIFY(search(db, u"cache"_s).isEmpty());
+        QCOMPARE(search(db, u"virtual"_s), QList<qint64> {1});
+
+        QVERIFY(db.exec(u"UPDATE pages SET title = 'Tema 6' WHERE id = 1"_s));
+        QCOMPARE(search(db, u"title:6"_s), QList<qint64> {1});
+        QVERIFY(search(db, u"title:5"_s).isEmpty());
+
+        QVERIFY(db.exec(u"DELETE FROM pages WHERE id = 2"_s));
+        QVERIFY(search(db, u"title:other"_s).isEmpty());
+        // Pages deleted with their folder leave the index too.
+        QVERIFY(db.exec(u"DELETE FROM folders WHERE id = 1"_s));
+        QVERIFY(search(db, u"virtual"_s).isEmpty());
+        QSqlQuery query(db.connection());
+        QVERIFY(query.exec(u"SELECT COUNT(*) FROM page_search"_s) && query.next());
+        QCOMPARE(query.value(0).toInt(), 0);
     }
 
     void migrationIsIdempotent()

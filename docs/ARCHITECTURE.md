@@ -28,7 +28,8 @@ a GUI and leaves the door open to other front ends.
 | -------------------------- | ------------------------------------------------------------------ |
 | `core/Database`            | One SQLite connection per thread, configured for durability        |
 | `core/Schema`              | Versioned migrations through `PRAGMA user_version`                 |
-| `core/NoteStore`           | CRUD for folders and pages; loads page bodies on demand            |
+| `core/NoteStore`           | CRUD, moves and full-text search; loads page bodies on demand      |
+| `core/FuzzyMatch`          | Scores quick-switcher matches of a pattern against page titles     |
 | `core/Session`             | Persists open tabs, cursor positions and window layout             |
 | `core/BackgroundWriter`    | Writes page bodies and the session on a dedicated thread           |
 | `core/AutosaveTimer`       | Decides *when* an edited page should be saved                      |
@@ -36,6 +37,9 @@ a GUI and leaves the door open to other front ends.
 | `ui/NavigationPane`        | Sidebar: create, rename, delete folders and pages                  |
 | `ui/EditorView`            | Plain-text editor for one page; hands snapshots to the writer      |
 | `ui/EditorArea`            | Tabs; one `EditorView` per open page                               |
+| `ui/SearchPopup`           | Base of the search popups: input, results, keyboard handling       |
+| `ui/QuickSwitcher`         | Ctrl+P: open a page by (fuzzy) name                                |
+| `ui/PageSearch`            | Ctrl+Shift+F: full-text search, with snippets                      |
 | `ui/MainWindow`            | Wires everything together; session save/restore; status bar        |
 | `app/TerminationSignals`   | Turns SIGTERM/SIGINT/SIGHUP into a graceful, saving shutdown       |
 
@@ -81,6 +85,11 @@ erDiagram
   small `folders` and `pages` rows and never touches note contents, however
   large they get.
 - `session_values` (not shown) is a key/value table for the window layout.
+- `page_search` (not shown) is an FTS5 full-text index of titles and bodies,
+  keyed by page id. Triggers on `pages` and `page_content` update it in the
+  same transaction as every insert, rename, edit and delete, so it can never
+  drift from the notes, not even after a crash. It costs a second copy of the
+  text, which is small for notes.
 
 Migrations live in `core/Schema.cpp`. Each runs in its own transaction, so an
 upgrade interrupted halfway leaves the previous, consistent version. Inkwell
@@ -160,6 +169,9 @@ with its session saved.
   re-querying. Views never wait on the database while scrolling or expanding,
   and `setUniformRowHeights` spares the view from measuring every row.
 - **Bodies are loaded lazily**, only when a page is opened.
+- **Search never scans the notes.** The quick switcher matches the page names
+  already in memory: about 5 ms for 10,000 pages per keystroke. Full-text
+  search asks the FTS5 index: 6-10 ms per keystroke for 5,000 pages of 2 KB.
 - **`QPlainTextEdit`** is Qt's text widget for large documents; its layout is
   incremental and per block.
 - **WAL lets reads and writes run concurrently.** The UI connection can read a

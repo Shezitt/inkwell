@@ -42,6 +42,11 @@ public:
     /// Moves the cursor to @p cursor and scrolls to @p scroll once the editor is shown.
     void restoreViewState(int cursor, int scroll);
 
+    /// Selects the first occurrence of any of @p words, preferring the start
+    /// of a word and ignoring case and accents, as search does, and scrolls it
+    /// into the middle of the view. Returns false if none occurs.
+    bool selectFirstMatch(const QStringList &words);
+
 signals:
     /// hasUnsavedChanges() may have changed.
     void saveStateChanged();

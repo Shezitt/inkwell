@@ -32,6 +32,25 @@ QString cleanName(const QString &name)
     return name.simplified();
 }
 
+/// Turns what the user typed into an FTS5 query that matches pages containing
+/// every word, the last one also as a prefix. Each word is quoted, so
+/// operators, column filters and stray quotes are taken literally.
+QString ftsQuery(const QString &text)
+{
+    QStringList terms;
+    for (const QString &word : text.split(u' ', Qt::SkipEmptyParts)) {
+        // Words without letters or digits produce no tokens; FTS5 cannot match them.
+        if (std::none_of(word.cbegin(), word.cend(), [](QChar c) { return c.isLetterOrNumber(); }))
+            continue;
+        QString quoted = word;
+        quoted.replace(u'"', u"\"\""_s);
+        terms.append(u'"' + quoted + u'"');
+    }
+    if (!terms.isEmpty())
+        terms.last().append(u'*');
+    return terms.join(u' ');
+}
+
 } // namespace
 
 NoteStore::NoteStore(Database &db)
@@ -278,6 +297,37 @@ bool NoteStore::setPageBody(PageId id, const QString &body)
         return fail(query.lastError().text());
 
     return tx.commit() || fail(m_db.lastError());
+}
+
+QList<SearchHit> NoteStore::search(const QString &text, int limit) const
+{
+    const QString query = ftsQuery(text.simplified());
+    if (query.isEmpty())
+        return {};
+
+    // bm25() is lower for better matches; weigh a word in the title like ten in the body.
+    QSqlQuery sql(m_db.connection());
+    sql.setForwardOnly(true);
+    sql.prepare(u"SELECT rowid, title, snippet(page_search, 1, ?, ?, '…', 12)"
+                " FROM page_search WHERE page_search MATCH ?"
+                " ORDER BY bm25(page_search, 10.0, 1.0) LIMIT ?"_s);
+    sql.addBindValue(QString(SearchHit::kMatchStart));
+    sql.addBindValue(QString(SearchHit::kMatchEnd));
+    sql.addBindValue(query);
+    sql.addBindValue(limit);
+    if (!sql.exec()) {
+        fail(sql.lastError().text());
+        return {};
+    }
+
+    QList<SearchHit> hits;
+    while (sql.next()) {
+        QString snippet = sql.value(2).toString().simplified();
+        if (!snippet.contains(SearchHit::kMatchStart))
+            snippet.clear(); // only the title matched; the body start says nothing
+        hits.append({sql.value(0).toLongLong(), sql.value(1).toString(), snippet});
+    }
+    return hits;
 }
 
 bool NoteStore::rename(const QString &table, const QString &column, qint64 id, const QString &value)

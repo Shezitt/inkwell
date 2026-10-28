@@ -50,6 +50,12 @@ public:
     /// Stores @p body and bumps the page's updated_at. Fails for unknown pages.
     bool setPageBody(PageId id, const QString &body);
 
+    /// Pages whose title or body contain every word of @p text, best first,
+    /// with title matches ranked above body matches. Case and accents are
+    /// ignored and the last word also matches as a prefix, for searching as
+    /// you type. Any text is safe: it is never parsed as FTS5 syntax.
+    [[nodiscard]] QList<SearchHit> search(const QString &text, int limit = 50) const;
+
     [[nodiscard]] QString lastError() const { return m_lastError; }
 
 private:

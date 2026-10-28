@@ -5,11 +5,13 @@
 #include "ui/EditorView.h"
 #include "ui/MainWindow.h"
 #include "ui/NavigationPane.h"
+#include "ui/PageSearch.h"
 #include "ui/PageTreeModel.h"
 #include "ui/QuickSwitcher.h"
 
 #include <QApplication>
 #include <QLineEdit>
+#include <QListView>
 #include <QTest>
 #include <QTreeView>
 
@@ -112,6 +114,38 @@ private slots:
         window.reset();
         QVERIFY(m_notebook->writer->flush(5000));
         QCOMPARE(m_notebook->storedBody(page), u"unsaved"_s);
+    }
+
+    void searchesTextJustTypedAndJumpsToIt()
+    {
+        m_notebook->newPage(u"nothing here"_s);
+        const PageId page = m_notebook->newPage(u"first line\n"_s);
+        SessionState state;
+        state.tabs = {{page, 0, 0}};
+        state.currentTab = 0;
+        MainWindow window(*m_notebook->store, *m_notebook->writer);
+        window.restoreSession(state);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowActive(&window));
+
+        // Typed a moment ago into an editor without focus, so neither the
+        // autosave timer nor losing focus has saved it yet.
+        window.findChild<NavigationPane *>()->view()->setFocus();
+        EditorView *editor = window.findChild<EditorArea *>()->editor(page);
+        editor->moveCursor(QTextCursor::End);
+        QTest::keyClicks(editor, u"the zebra crossed"_s);
+        QVERIFY(editor->hasUnsavedChanges());
+
+        QTest::keyClick(&window, Qt::Key_F, Qt::ControlModifier | Qt::ShiftModifier);
+        auto *search = window.findChild<PageSearch *>();
+        QVERIFY(search->isVisible());
+        QTest::keyClicks(search->input(), u"zebra"_s);
+        QCOMPARE(search->results()->model()->rowCount(), 1);
+        QTest::keyClick(search->input(), Qt::Key_Return);
+
+        QCOMPARE(window.captureSession().tabs.constFirst().page, page);
+        QCOMPARE(editor->textCursor().selectedText(), u"zebra"_s);
+        QTRY_COMPARE(QApplication::focusWidget(), editor);
     }
 
     void skipsTabsOfMissingPages()

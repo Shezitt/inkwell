@@ -22,8 +22,10 @@ add_library(
   ui/EditorView.cpp
   ui/MainWindow.cpp
   ui/NavigationPane.cpp
+  ui/PageSearch.cpp
   ui/PageTreeModel.cpp
-  ui/QuickSwitcher.cpp)
+  ui/QuickSwitcher.cpp
+  ui/SearchPopup.cpp)
 target_link_libraries(
   inkwell_ui
   PUBLIC inkwell_core Qt6::Widgets

@@ -320,6 +320,60 @@ bool PageTreeModel::remove(const QModelIndex &index)
     return true;
 }
 
+bool PageTreeModel::move(const QModelIndex &index, FolderId folderId, int position)
+{
+    Node *node = nodeFor(index);
+    Node *target = folderId == kNoFolder ? m_root.get() : m_folders.value(folderId);
+    if (!node || !target)
+        return false;
+    const bool isFolder = node->kind == Kind::Folder;
+    if (!isFolder && target == m_root.get())
+        return false; // every page lives in a folder
+    for (const Node *ancestor = target; ancestor; ancestor = ancestor->parent) {
+        if (ancestor == node)
+            return false; // a folder cannot go inside itself
+    }
+
+    // Folders occupy the first rows of their parent and pages the rest, so the
+    // final row is the position within the item's own block.
+    Node *source = node->parent;
+    const int sourceRow = node->row();
+    const int blockStart = isFolder ? 0 : target->folderCount;
+    int blockSize
+        = isFolder ? target->folderCount : int(target->children.size()) - target->folderCount;
+    if (source == target)
+        --blockSize; // the item leaves its block before it is put back
+    position = std::clamp(position, 0, blockSize);
+    const int targetRow = blockStart + position;
+    if (source == target && targetRow == sourceRow)
+        return true;
+
+    const bool ok = isFolder ? m_store.moveFolder(node->id, folderId, position)
+                             : m_store.movePage(node->id, folderId, position);
+    if (!ok) {
+        emit errorOccurred(m_store.lastError());
+        return false;
+    }
+
+    // beginMoveRows() counts the destination row before the item is taken out.
+    const int destinationRow
+        = source == target && targetRow > sourceRow ? targetRow + 1 : targetRow;
+    if (!beginMoveRows(indexFor(source), sourceRow, sourceRow, indexFor(target), destinationRow)) {
+        reload(); // cannot happen for the moves allowed above; stay in sync regardless
+        return true;
+    }
+    std::unique_ptr<Node> owned = std::move(source->children[size_t(sourceRow)]);
+    source->children.erase(source->children.begin() + sourceRow);
+    target->children.insert(target->children.begin() + targetRow, std::move(owned));
+    if (isFolder) {
+        --source->folderCount;
+        ++target->folderCount;
+    }
+    node->parent = target;
+    endMoveRows();
+    return true;
+}
+
 PageTreeModel::Node *PageTreeModel::nodeFor(const QModelIndex &index) const
 {
     if (!index.isValid() || index.model() != this)

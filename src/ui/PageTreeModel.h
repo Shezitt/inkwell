@@ -67,6 +67,11 @@ public:
     bool rename(const QModelIndex &index, const QString &name);
     /// Deletes a page, or a folder with everything inside it.
     bool remove(const QModelIndex &index);
+    /// Moves a page or folder into @p folderId (kNoFolder: top level, folders
+    /// only), so that it ends up at @p position among the pages, or among the
+    /// subfolders, there. Returns false, changing nothing, if the move is not
+    /// possible.
+    bool move(const QModelIndex &index, FolderId folderId, int position);
 
 signals:
     void pageRenamed(inkwell::PageId id, const QString &title);

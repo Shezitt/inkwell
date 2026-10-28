@@ -275,6 +275,36 @@ private slots:
         QCOMPARE(namesUnder(m_model->folderIndex(root)), (QStringList {u"Child"_s, u"page"_s}));
     }
 
+    void shiftsItemsWithinTheirFolder()
+    {
+        createModel();
+        const FolderId a = PageTreeModel::id(m_model->createFolder(kNoFolder, u"A"_s));
+        const FolderId b = PageTreeModel::id(m_model->createFolder(kNoFolder, u"B"_s));
+        const FolderId sub = PageTreeModel::id(m_model->createFolder(a, u"Sub"_s));
+        const PageId p1 = PageTreeModel::id(m_model->createPage(a, u"p1"_s));
+        const PageId p2 = PageTreeModel::id(m_model->createPage(a, u"p2"_s));
+        const QModelIndex aIndex = m_model->folderIndex(a);
+
+        // The first page cannot move up past the subfolders, nor the last one down.
+        QVERIFY(!m_model->canShift(m_model->pageIndex(p1), -1));
+        QVERIFY(!m_model->canShift(m_model->pageIndex(p2), 1));
+        QVERIFY(!m_model->canShift(m_model->folderIndex(sub), 1));
+        QVERIFY(!m_model->canShift(m_model->pageIndex(p1), 0));
+        QVERIFY(!m_model->canShift({}, 1));
+        QVERIFY(!m_model->shift(m_model->pageIndex(p2), 1));
+
+        QVERIFY(m_model->canShift(m_model->pageIndex(p2), -1));
+        QVERIFY(m_model->shift(m_model->pageIndex(p2), -1));
+        QCOMPARE(namesUnder(aIndex), (QStringList {u"Sub"_s, u"p2"_s, u"p1"_s}));
+
+        QVERIFY(m_model->shift(m_model->folderIndex(b), -1));
+        QCOMPARE(namesUnder(), (QStringList {u"B"_s, u"A"_s}));
+
+        createModel();
+        QCOMPARE(namesUnder(), (QStringList {u"B"_s, u"A"_s}));
+        QCOMPARE(namesUnder(m_model->folderIndex(a)), (QStringList {u"Sub"_s, u"p2"_s, u"p1"_s}));
+    }
+
     void dragsAndDropsItems()
     {
         createModel();

@@ -70,7 +70,16 @@ NavigationPane::NavigationPane(PageTreeModel *model, QWidget *parent)
     m_delete->setShortcut(QKeySequence::Delete);
     m_delete->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     connect(m_delete, &QAction::triggered, this, &NavigationPane::deleteSelected);
-    m_view->addActions({m_rename, m_delete});
+    m_moveUp = new QAction(QIcon::fromTheme(u"go-up"_s), tr("Move &Up"), this);
+    m_moveUp->setShortcut(Qt::CTRL | Qt::SHIFT | Qt::Key_Up);
+    m_moveUp->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    connect(m_moveUp, &QAction::triggered, this, &NavigationPane::moveSelectedUp);
+
+    m_moveDown = new QAction(QIcon::fromTheme(u"go-down"_s), tr("Move Dow&n"), this);
+    m_moveDown->setShortcut(Qt::CTRL | Qt::SHIFT | Qt::Key_Down);
+    m_moveDown->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    connect(m_moveDown, &QAction::triggered, this, &NavigationPane::moveSelectedDown);
+    m_view->addActions({m_rename, m_delete, m_moveUp, m_moveDown});
 
     auto *title = new QLabel(tr("Pages"), this);
     title->setStyleSheet(u"font-weight: 600;"_s);
@@ -108,6 +117,10 @@ NavigationPane::NavigationPane(PageTreeModel *model, QWidget *parent)
     connect(m_view, &QTreeView::collapsed, this, &NavigationPane::expansionChanged);
     connect(m_view->selectionModel(), &QItemSelectionModel::currentChanged, this,
         &NavigationPane::updateActions);
+    // Moving, adding or removing items changes what can move up or down.
+    connect(m_model, &QAbstractItemModel::rowsMoved, this, &NavigationPane::updateActions);
+    connect(m_model, &QAbstractItemModel::rowsInserted, this, &NavigationPane::updateActions);
+    connect(m_model, &QAbstractItemModel::rowsRemoved, this, &NavigationPane::updateActions);
     connect(m_view->itemDelegate(), &QAbstractItemDelegate::closeEditor, this, [this] {
         if (const PageId page = std::exchange(m_namingPage, 0))
             emit newPageNamed(page);
@@ -235,6 +248,23 @@ void NavigationPane::deleteSelected()
         m_model->remove(index);
 }
 
+void NavigationPane::moveSelectedUp()
+{
+    moveSelected(-1);
+}
+
+void NavigationPane::moveSelectedDown()
+{
+    moveSelected(1);
+}
+
+void NavigationPane::moveSelected(int delta)
+{
+    const QModelIndex index = m_view->currentIndex();
+    if (m_model->shift(index, delta))
+        m_view->scrollTo(m_view->currentIndex()); // the current index follows the move
+}
+
 void NavigationPane::showContextMenu(const QPoint &pos)
 {
     const QModelIndex index = m_view->indexAt(pos);
@@ -247,6 +277,9 @@ void NavigationPane::showContextMenu(const QPoint &pos)
         menu.addAction(m_newPage);
         if (m_model->isFolder(index))
             menu.addAction(m_newSubfolder);
+        menu.addSeparator();
+        menu.addAction(m_moveUp);
+        menu.addAction(m_moveDown);
         menu.addSeparator();
         menu.addAction(m_rename);
         menu.addAction(m_delete);
@@ -273,6 +306,8 @@ void NavigationPane::updateActions()
     const bool hasSelection = m_view->currentIndex().isValid();
     m_rename->setEnabled(hasSelection);
     m_delete->setEnabled(hasSelection);
+    m_moveUp->setEnabled(m_model->canShift(m_view->currentIndex(), -1));
+    m_moveDown->setEnabled(m_model->canShift(m_view->currentIndex(), 1));
 }
 
 } // namespace inkwell

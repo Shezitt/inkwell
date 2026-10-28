@@ -435,6 +435,32 @@ bool PageTreeModel::move(const QModelIndex &index, FolderId folderId, int positi
     return true;
 }
 
+bool PageTreeModel::canShift(const QModelIndex &index, int delta) const
+{
+    const Node *node = nodeFor(index);
+    if (!node || delta == 0)
+        return false;
+    const auto [position, count] = positionInBlock(node);
+    return position + delta >= 0 && position + delta < count;
+}
+
+bool PageTreeModel::shift(const QModelIndex &index, int delta)
+{
+    if (!canShift(index, delta))
+        return false;
+    const Node *node = nodeFor(index);
+    const FolderId folder = node->parent == m_root.get() ? kNoFolder : node->parent->id;
+    return move(index, folder, positionInBlock(node).first + delta);
+}
+
+std::pair<int, int> PageTreeModel::positionInBlock(const Node *node)
+{
+    const Node *parent = node->parent;
+    if (node->kind == Kind::Folder)
+        return {node->row(), parent->folderCount};
+    return {node->row() - parent->folderCount, int(parent->children.size()) - parent->folderCount};
+}
+
 PageTreeModel::Node *PageTreeModel::draggedNode(const QMimeData *data) const
 {
     if (!data || !data->hasFormat(kItemMimeType))

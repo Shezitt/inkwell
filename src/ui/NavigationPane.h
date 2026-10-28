@@ -40,6 +40,9 @@ public slots:
     void createPage();
     void renameSelected();
     void deleteSelected();
+    /// Moves the selected item one place up or down within its folder.
+    void moveSelectedUp();
+    void moveSelectedDown();
 
 signals:
     void pageActivated(inkwell::PageId id);
@@ -52,6 +55,7 @@ private:
     void activate(const QModelIndex &index);
     void startRenaming(const QModelIndex &index);
     void updateActions();
+    void moveSelected(int delta);
 
     PageTreeModel *m_model;
     QTreeView *m_view;
@@ -60,6 +64,8 @@ private:
     QAction *m_newSubfolder;
     QAction *m_rename;
     QAction *m_delete;
+    QAction *m_moveUp;
+    QAction *m_moveDown;
     PageId m_namingPage = 0;
 };
 

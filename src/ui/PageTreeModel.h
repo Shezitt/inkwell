@@ -9,6 +9,7 @@
 #include <QList>
 
 #include <memory>
+#include <utility>
 #include <vector>
 
 namespace inkwell {
@@ -82,6 +83,11 @@ public:
     /// subfolders, there. Returns false, changing nothing, if the move is not
     /// possible.
     bool move(const QModelIndex &index, FolderId folderId, int position);
+    /// Whether shift() can move the item @p delta places within its folder.
+    [[nodiscard]] bool canShift(const QModelIndex &index, int delta) const;
+    /// Moves an item @p delta places up (negative) or down among its siblings
+    /// of the same kind, staying in its folder.
+    bool shift(const QModelIndex &index, int delta);
 
 signals:
     void pageRenamed(inkwell::PageId id, const QString &title);
@@ -93,6 +99,8 @@ private:
     struct Node;
 
     [[nodiscard]] Node *nodeFor(const QModelIndex &index) const;
+    /// Position of @p node among its parent's folders or pages, and how many there are.
+    [[nodiscard]] static std::pair<int, int> positionInBlock(const Node *node);
     [[nodiscard]] Node *draggedNode(const QMimeData *data) const;
     /// The folder (or the root) that a drop on @p parent goes into, if @p node may go there.
     [[nodiscard]] Node *dropTarget(const Node *node, const QModelIndex &parent) const;

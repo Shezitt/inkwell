@@ -4,13 +4,23 @@
 #include "core/NoteStore.h"
 
 #include <QApplication>
+#include <QDataStream>
+#include <QIODevice>
+#include <QMimeData>
 #include <QStyle>
 
 #include <algorithm>
+#include <limits>
 
 using namespace Qt::StringLiterals;
 
 namespace inkwell {
+
+namespace {
+
+const QString kItemMimeType = u"application/x-inkwell-item"_s;
+
+} // namespace
 
 struct PageTreeModel::Node
 {
@@ -149,11 +159,62 @@ Qt::ItemFlags PageTreeModel::flags(const QModelIndex &index) const
 {
     const Node *node = nodeFor(index);
     if (!node)
-        return Qt::NoItemFlags;
-    Qt::ItemFlags result = Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable;
+        return index.isValid() ? Qt::NoItemFlags : Qt::ItemIsDropEnabled; // top level
+    Qt::ItemFlags result
+        = Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable | Qt::ItemIsDragEnabled;
     if (node->kind == Kind::Page)
         result |= Qt::ItemNeverHasChildren;
+    else
+        result |= Qt::ItemIsDropEnabled;
     return result;
+}
+
+QStringList PageTreeModel::mimeTypes() const
+{
+    return {kItemMimeType};
+}
+
+QMimeData *PageTreeModel::mimeData(const QModelIndexList &indexes) const
+{
+    // The view allows a single selection, so one item is dragged at a time.
+    const Node *node = indexes.isEmpty() ? nullptr : nodeFor(indexes.constFirst());
+    if (!node)
+        return nullptr;
+    QByteArray encoded;
+    QDataStream stream(&encoded, QIODevice::WriteOnly);
+    stream << int(node->kind) << node->id;
+    auto *data = new QMimeData;
+    data->setData(kItemMimeType, encoded);
+    return data;
+}
+
+bool PageTreeModel::canDropMimeData(const QMimeData *data, Qt::DropAction action, int /*row*/,
+    int /*column*/, const QModelIndex &parent) const
+{
+    return action == Qt::MoveAction && dropTarget(draggedNode(data), parent);
+}
+
+bool PageTreeModel::dropMimeData(const QMimeData *data, Qt::DropAction action, int row,
+    int /*column*/, const QModelIndex &parent)
+{
+    // The view calls removeRows() on the dragged rows after a successful move.
+    // This model keeps the default, which does nothing: the move below is
+    // already complete. Do not override removeRows().
+    const Node *node = draggedNode(data);
+    const Node *target = dropTarget(node, parent);
+    if (action != Qt::MoveAction || !target)
+        return false;
+
+    // row -1 means dropped onto the folder itself: append. Otherwise the item
+    // goes before `row`, counted among all children and before the move.
+    int position = std::numeric_limits<int>::max();
+    if (row >= 0) {
+        position = node->kind == Kind::Folder ? std::min(row, target->folderCount)
+                                              : std::max(row - target->folderCount, 0);
+        if (node->parent == target && node->row() < row)
+            --position; // its own row is freed above the drop point
+    }
+    return move(indexFor(node), target == m_root.get() ? kNoFolder : target->id, position);
 }
 
 QModelIndex PageTreeModel::folderIndex(FolderId id) const
@@ -372,6 +433,37 @@ bool PageTreeModel::move(const QModelIndex &index, FolderId folderId, int positi
     node->parent = target;
     endMoveRows();
     return true;
+}
+
+PageTreeModel::Node *PageTreeModel::draggedNode(const QMimeData *data) const
+{
+    if (!data || !data->hasFormat(kItemMimeType))
+        return nullptr;
+    QDataStream stream(data->data(kItemMimeType));
+    int kind = -1;
+    qint64 id = 0;
+    stream >> kind >> id;
+    if (stream.status() != QDataStream::Ok)
+        return nullptr;
+    if (kind == int(Kind::Folder))
+        return m_folders.value(id);
+    return kind == int(Kind::Page) ? m_pages.value(id) : nullptr;
+}
+
+PageTreeModel::Node *PageTreeModel::dropTarget(const Node *node, const QModelIndex &parent) const
+{
+    if (!node)
+        return nullptr;
+    Node *target = parent.isValid() ? nodeFor(parent) : m_root.get();
+    if (!target || target->kind != Kind::Folder)
+        return nullptr;
+    if (node->kind == Kind::Page)
+        return target == m_root.get() ? nullptr : target;
+    for (const Node *ancestor = target; ancestor; ancestor = ancestor->parent) {
+        if (ancestor == node)
+            return nullptr;
+    }
+    return target;
 }
 
 PageTreeModel::Node *PageTreeModel::nodeFor(const QModelIndex &index) const

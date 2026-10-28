@@ -90,6 +90,10 @@ NavigationPane::NavigationPane(PageTreeModel *model, QWidget *parent)
     m_view->setContextMenuPolicy(Qt::CustomContextMenu);
     m_view->setFrameShape(QFrame::NoFrame);
     m_view->setAnimated(true);
+    // Drag pages and folders to reorder them or to move them into another folder.
+    m_view->setDragDropMode(QAbstractItemView::InternalMove);
+    m_view->setDefaultDropAction(Qt::MoveAction);
+    m_view->setAutoExpandDelay(600); // hovering over a folder while dragging opens it
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);

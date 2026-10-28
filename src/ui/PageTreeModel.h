@@ -46,6 +46,16 @@ public:
     bool setData(const QModelIndex &index, const QVariant &value, int role = Qt::EditRole) override;
     Qt::ItemFlags flags(const QModelIndex &index) const override;
 
+    // Drag and drop within the tree. Only moves are supported.
+    Qt::DropActions supportedDragActions() const override { return Qt::MoveAction; }
+    Qt::DropActions supportedDropActions() const override { return Qt::MoveAction; }
+    QStringList mimeTypes() const override;
+    QMimeData *mimeData(const QModelIndexList &indexes) const override;
+    bool canDropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column,
+        const QModelIndex &parent) const override;
+    bool dropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column,
+        const QModelIndex &parent) override;
+
     [[nodiscard]] QModelIndex folderIndex(FolderId id) const;
     [[nodiscard]] QModelIndex pageIndex(PageId id) const;
     [[nodiscard]] static Kind kind(const QModelIndex &index);
@@ -83,6 +93,9 @@ private:
     struct Node;
 
     [[nodiscard]] Node *nodeFor(const QModelIndex &index) const;
+    [[nodiscard]] Node *draggedNode(const QMimeData *data) const;
+    /// The folder (or the root) that a drop on @p parent goes into, if @p node may go there.
+    [[nodiscard]] Node *dropTarget(const Node *node, const QModelIndex &parent) const;
     [[nodiscard]] QModelIndex indexFor(const Node *node) const;
     void collectPages(const Node *node, QList<PageId> &out) const;
     void forget(const Node *node);

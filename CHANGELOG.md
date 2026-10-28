@@ -7,12 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-28
+
 ### Fixed
 
 - The sidebar showed no folders or pages after restarting, although they were
   saved.
 
-## [0.1.0]
+## [0.1.0] - 2026-10-27
 
 The first release: the foundation of Inkwell.
 
@@ -33,5 +35,6 @@ The first release: the foundation of Inkwell.
 - `--database` option to open a notebook from any location.
 - Desktop entry and icon for Linux.
 
-[Unreleased]: https://github.com/Shezitt/inkwell/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Shezitt/inkwell/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/Shezitt/inkwell/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Shezitt/inkwell/releases/tag/v0.1.0

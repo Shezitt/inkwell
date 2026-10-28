@@ -12,6 +12,7 @@
 #include <QCommandLineParser>
 #include <QDir>
 #include <QFileInfo>
+#include <QIcon>
 #include <QLockFile>
 #include <QMessageBox>
 #include <QPointer>
@@ -32,9 +33,11 @@ int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
     QApplication::setApplicationName(u"Inkwell"_s);
-    QApplication::setOrganizationName(u"Inkwell"_s);
     QApplication::setApplicationVersion(QStringLiteral(INKWELL_VERSION));
     QApplication::setDesktopFileName(u"io.github.shezitt.Inkwell"_s);
+    // Prefer the installed theme icon; fall back to the bundled one.
+    QApplication::setWindowIcon(QIcon::fromTheme(
+        u"io.github.shezitt.Inkwell"_s, QIcon(u":/icons/io.github.shezitt.Inkwell.svg"_s)));
 
     // Set once the window is up. Until then there is nothing to save.
     QPointer<inkwell::MainWindow> mainWindow;

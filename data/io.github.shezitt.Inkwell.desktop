@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Inkwell
+GenericName=Notes
+Comment=Fast, native notes that never lose what you wrote
+Exec=inkwell
+Icon=io.github.shezitt.Inkwell
+Terminal=false
+Categories=Utility;TextEditor;Qt;
+Keywords=notes;notebook;editor;text;wiki;
+StartupNotify=true
+StartupWMClass=inkwell
+SingleMainWindow=true

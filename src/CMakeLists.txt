@@ -31,9 +31,18 @@ qt_add_executable(inkwell WIN32 MACOSX_BUNDLE app/main.cpp app/TerminationSignal
 
 target_compile_definitions(inkwell PRIVATE INKWELL_VERSION="${PROJECT_VERSION}")
 target_link_libraries(inkwell PRIVATE inkwell_ui inkwell_warnings)
+qt_add_resources(inkwell "icons" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}/data" FILES
+                 "${PROJECT_SOURCE_DIR}/data/icons/io.github.shezitt.Inkwell.svg")
 
 include(GNUInstallDirs)
 install(
   TARGETS inkwell
   BUNDLE DESTINATION .
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+if(UNIX AND NOT APPLE)
+  install(FILES "${PROJECT_SOURCE_DIR}/data/io.github.shezitt.Inkwell.desktop"
+          DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+  install(FILES "${PROJECT_SOURCE_DIR}/data/icons/io.github.shezitt.Inkwell.svg"
+          DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+endif()

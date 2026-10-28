@@ -4,6 +4,7 @@ add_library(
   core/AutosaveTimer.cpp
   core/BackgroundWriter.cpp
   core/Database.cpp
+  core/FuzzyMatch.cpp
   core/Log.cpp
   core/NoteStore.cpp
   core/Schema.cpp

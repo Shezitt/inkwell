@@ -27,6 +27,7 @@ inkwell_add_test(tst_navigationpane SOURCES tst_navigationpane.cpp LIBRARIES ink
 inkwell_add_test(tst_autosavetimer SOURCES tst_autosavetimer.cpp LIBRARIES inkwell_core)
 inkwell_add_test(tst_editorview SOURCES tst_editorview.cpp TestNotebook.h LIBRARIES inkwell_ui)
 inkwell_add_test(tst_editorarea SOURCES tst_editorarea.cpp TestNotebook.h LIBRARIES inkwell_ui)
+inkwell_add_test(tst_fuzzymatch SOURCES tst_fuzzymatch.cpp LIBRARIES inkwell_core)
 inkwell_add_test(tst_session SOURCES tst_session.cpp LIBRARIES inkwell_core)
 inkwell_add_test(tst_mainwindow SOURCES tst_mainwindow.cpp TestNotebook.h LIBRARIES inkwell_ui)
 

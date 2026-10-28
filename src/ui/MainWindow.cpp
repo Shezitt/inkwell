@@ -4,6 +4,7 @@
 #include "EditorArea.h"
 #include "EditorView.h"
 #include "NavigationPane.h"
+#include "PageSearch.h"
 #include "PageTreeModel.h"
 #include "QuickSwitcher.h"
 #include "core/BackgroundWriter.h"
@@ -27,6 +28,8 @@ namespace {
 constexpr int kCloseFlushTimeoutMs = 5000;
 /// Session changes (tabs, cursor, layout) are batched for this long.
 constexpr int kSessionSaveDelayMs = 1000;
+/// How long opening search may wait for the latest edits to be indexed.
+constexpr int kSearchFlushTimeoutMs = 1000;
 
 } // namespace
 
@@ -38,6 +41,7 @@ MainWindow::MainWindow(NoteStore &store, BackgroundWriter &writer, QWidget *pare
     , m_editors(new EditorArea(store, writer, this))
     , m_splitter(new QSplitter(Qt::Horizontal, this))
     , m_quickSwitcher(new QuickSwitcher(m_model, this))
+    , m_pageSearch(new PageSearch(store, m_model, this))
     , m_saveStatus(new QLabel(this))
     , m_cursorStatus(new QLabel(this))
     , m_sessionTimer(new QTimer(this))
@@ -54,6 +58,13 @@ MainWindow::MainWindow(NoteStore &store, BackgroundWriter &writer, QWidget *pare
         openPage(id);
         m_editors->focusCurrentEditor(); // so typing goes straight into the page
     });
+    connect(
+        m_pageSearch, &PageSearch::pageChosen, this, [this](PageId id, const QStringList &words) {
+            openPage(id);
+            if (EditorView *editor = m_editors->editor(id))
+                editor->selectFirstMatch(words);
+            m_editors->focusCurrentEditor();
+        });
     connect(
         m_navigation, &NavigationPane::newPageNamed, m_editors, &EditorArea::focusCurrentEditor);
     connect(m_model, &PageTreeModel::pageRenamed, m_editors, &EditorArea::renamePage);
@@ -191,6 +202,15 @@ void MainWindow::createActions()
     QAction *goToPage = file->addAction(QIcon::fromTheme(u"go-jump"_s), tr("&Go to Page…"));
     goToPage->setShortcut(Qt::CTRL | Qt::Key_P);
     connect(goToPage, &QAction::triggered, this, [this] { m_quickSwitcher->popup(this); });
+
+    QAction *search = file->addAction(QIcon::fromTheme(u"edit-find"_s), tr("Searc&h in Pages…"));
+    search->setShortcut(Qt::CTRL | Qt::SHIFT | Qt::Key_F);
+    connect(search, &QAction::triggered, this, [this] {
+        // Search what is on screen, including edits not autosaved yet.
+        m_editors->saveAll();
+        m_writer.flush(kSearchFlushTimeoutMs);
+        m_pageSearch->popup(this);
+    });
     file->addSeparator();
 
     // Everything is saved automatically; Ctrl+S just saves right away.

@@ -17,6 +17,7 @@ class BackgroundWriter;
 class EditorArea;
 class NavigationPane;
 class NoteStore;
+class PageSearch;
 class PageTreeModel;
 class QuickSwitcher;
 
@@ -56,6 +57,7 @@ private:
     EditorArea *m_editors;
     QSplitter *m_splitter;
     QuickSwitcher *m_quickSwitcher;
+    PageSearch *m_pageSearch;
     QLabel *m_saveStatus;
     QLabel *m_cursorStatus;
     QAction *m_sidebarAction = nullptr;

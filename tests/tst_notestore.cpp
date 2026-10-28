@@ -179,7 +179,9 @@ private slots:
     {
         const auto folder = m_store->createFolder(kNoFolder, u"Notes"_s);
         const auto page = m_store->createPage(folder->id, u"Page"_s);
+        QVERIFY(m_store->pageExists(page->id));
         QVERIFY(m_store->deletePage(page->id));
+        QVERIFY(!m_store->pageExists(page->id));
         QVERIFY(m_store->pages().isEmpty());
         expectWarning();
         QVERIFY(!m_store->pageBody(page->id));

@@ -18,6 +18,7 @@ class EditorArea;
 class NavigationPane;
 class NoteStore;
 class PageTreeModel;
+class QuickSwitcher;
 
 class MainWindow : public QMainWindow
 {
@@ -54,6 +55,7 @@ private:
     NavigationPane *m_navigation;
     EditorArea *m_editors;
     QSplitter *m_splitter;
+    QuickSwitcher *m_quickSwitcher;
     QLabel *m_saveStatus;
     QLabel *m_cursorStatus;
     QAction *m_sidebarAction = nullptr;

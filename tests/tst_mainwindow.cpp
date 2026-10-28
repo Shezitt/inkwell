@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: MIT
 #include "TestNotebook.h"
 #include "core/Session.h"
+#include "ui/EditorView.h"
 #include "ui/MainWindow.h"
 #include "ui/NavigationPane.h"
 #include "ui/PageTreeModel.h"
+#include "ui/QuickSwitcher.h"
 
+#include <QApplication>
+#include <QLineEdit>
 #include <QTest>
 #include <QTreeView>
 
@@ -66,6 +70,28 @@ private slots:
         QCOMPARE(pageRow.data(PageTreeModel::IdRole).toLongLong(), page);
         QVERIFY(view->visualRect(folder).height() > 0);
         QVERIFY(view->visualRect(pageRow).top() >= view->visualRect(folder).bottom());
+    }
+
+    void opensPagesFromTheQuickSwitcher()
+    {
+        m_notebook->newPage(u"first"_s);
+        const auto target = m_notebook->store->createPage(m_notebook->folder, u"Roadmap"_s);
+        MainWindow window(*m_notebook->store, *m_notebook->writer);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowActive(&window));
+
+        QTest::keyClick(&window, Qt::Key_P, Qt::ControlModifier);
+        auto *switcher = window.findChild<QuickSwitcher *>();
+        QVERIFY(switcher->isVisible());
+        QTest::keyClicks(switcher->input(), u"road"_s);
+        QTest::keyClick(switcher->input(), Qt::Key_Return);
+
+        QVERIFY(!switcher->isVisible());
+        QCOMPARE(window.captureSession().tabs.size(), 1);
+        QCOMPARE(window.captureSession().tabs.constFirst().page, target->id);
+        QVERIFY(window.windowTitle().startsWith(u"Roadmap"_s));
+        // Ready to type into the page.
+        QTRY_VERIFY(qobject_cast<EditorView *>(QApplication::focusWidget()));
     }
 
     void skipsTabsOfMissingPages()

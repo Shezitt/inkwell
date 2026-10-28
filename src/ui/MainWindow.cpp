@@ -5,6 +5,7 @@
 #include "EditorView.h"
 #include "NavigationPane.h"
 #include "PageTreeModel.h"
+#include "QuickSwitcher.h"
 #include "core/BackgroundWriter.h"
 
 #include <QApplication>
@@ -36,6 +37,7 @@ MainWindow::MainWindow(NoteStore &store, BackgroundWriter &writer, QWidget *pare
     , m_navigation(new NavigationPane(m_model, this))
     , m_editors(new EditorArea(store, writer, this))
     , m_splitter(new QSplitter(Qt::Horizontal, this))
+    , m_quickSwitcher(new QuickSwitcher(m_model, this))
     , m_saveStatus(new QLabel(this))
     , m_cursorStatus(new QLabel(this))
     , m_sessionTimer(new QTimer(this))
@@ -48,6 +50,10 @@ MainWindow::MainWindow(NoteStore &store, BackgroundWriter &writer, QWidget *pare
     setCentralWidget(m_splitter);
 
     connect(m_navigation, &NavigationPane::pageActivated, this, &MainWindow::openPage);
+    connect(m_quickSwitcher, &QuickSwitcher::pageChosen, this, [this](PageId id) {
+        openPage(id);
+        m_editors->focusCurrentEditor(); // so typing goes straight into the page
+    });
     connect(
         m_navigation, &NavigationPane::newPageNamed, m_editors, &EditorArea::focusCurrentEditor);
     connect(m_model, &PageTreeModel::pageRenamed, m_editors, &EditorArea::renamePage);
@@ -174,6 +180,11 @@ void MainWindow::createActions()
     QMenu *file = menuBar()->addMenu(tr("&File"));
     file->addAction(m_navigation->newPageAction());
     file->addAction(m_navigation->newFolderAction());
+    file->addSeparator();
+
+    QAction *goToPage = file->addAction(QIcon::fromTheme(u"go-jump"_s), tr("&Go to Page…"));
+    goToPage->setShortcut(Qt::CTRL | Qt::Key_P);
+    connect(goToPage, &QAction::triggered, this, [this] { m_quickSwitcher->popup(this); });
     file->addSeparator();
 
     // Everything is saved automatically; Ctrl+S just saves right away.

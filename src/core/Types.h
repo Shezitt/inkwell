@@ -34,4 +34,18 @@ struct Page
     friend bool operator==(const Page &, const Page &) = default;
 };
 
+/// A page found by NoteStore::search().
+struct SearchHit
+{
+    /// Markers around the matched words in a snippet.
+    static constexpr QChar kMatchStart = u'\x02';
+    static constexpr QChar kMatchEnd = u'\x03';
+
+    PageId id = 0;
+    QString title;
+    /// One line of the body around the best match, with the matched words
+    /// between kMatchStart and kMatchEnd. Empty if only the title matched.
+    QString snippet;
+};
+
 } // namespace inkwell

@@ -7,6 +7,7 @@
 #include <QTest>
 
 #include <memory>
+#include <tuple>
 
 using namespace Qt::StringLiterals;
 using namespace inkwell;
@@ -325,6 +326,89 @@ private slots:
 
         QCOMPARE(m_store->pages(), pagesBefore);
         QCOMPARE(m_store->folders(), foldersBefore);
+    }
+
+    void searchesTitlesAndBodies()
+    {
+        const auto folder = m_store->createFolder(kNoFolder, u"F"_s);
+        const auto inBody = m_store->createPage(folder->id, u"Monday"_s);
+        const auto inTitle = m_store->createPage(folder->id, u"Robot trials"_s);
+        m_store->createPage(folder->id, u"Unrelated"_s);
+        QVERIFY(m_store->setPageBody(inBody->id, u"The robot dropped the marker."_s));
+
+        const QList<SearchHit> hits = m_store->search(u"robot"_s);
+        QCOMPARE(hits.size(), 2);
+        // A match in the title outranks one in the body.
+        QCOMPARE(hits.at(0).id, inTitle->id);
+        QCOMPARE(hits.at(0).title, u"Robot trials"_s);
+        QVERIFY(hits.at(0).snippet.isEmpty());
+        QCOMPARE(hits.at(1).id, inBody->id);
+        QCOMPARE(hits.at(1).snippet, u"The \x02robot\x03 dropped the marker."_s);
+    }
+
+    void searchIgnoresCaseAndAccentsAndMatchesPrefixes()
+    {
+        const auto folder = m_store->createFolder(kNoFolder, u"F"_s);
+        const auto page = m_store->createPage(folder->id, u"Tema 5"_s);
+        QVERIFY(m_store->setPageBody(page->id, u"Cómo funciona la Caché del procesador"_s));
+
+        QCOMPARE(m_store->search(u"cache"_s).size(), 1);
+        QCOMPARE(m_store->search(u"COMO"_s).size(), 1);
+        QCOMPARE(m_store->search(u"proc"_s).size(), 1); // still typing "procesador"
+        QCOMPARE(m_store->search(u"caché procesador"_s).size(), 1);
+        // Only the last word is a prefix; earlier ones are complete words.
+        QVERIFY(m_store->search(u"proc cache"_s).isEmpty());
+    }
+
+    void searchRequiresEveryWord()
+    {
+        const auto folder = m_store->createFolder(kNoFolder, u"F"_s);
+        const auto both = m_store->createPage(folder->id, u"a"_s);
+        const auto one = m_store->createPage(folder->id, u"b"_s);
+        QVERIFY(m_store->setPageBody(both->id, u"gripper opens wide"_s));
+        QVERIFY(m_store->setPageBody(one->id, u"gripper closes"_s));
+
+        const QList<SearchHit> hits = m_store->search(u"  wide   gripper "_s);
+        QCOMPARE(hits.size(), 1);
+        QCOMPARE(hits.constFirst().id, both->id);
+    }
+
+    void searchTakesAnyTextLiterally()
+    {
+        const auto folder = m_store->createFolder(kNoFolder, u"F"_s);
+        const auto page = m_store->createPage(folder->id, u"Query syntax"_s);
+        QVERIFY(m_store->setPageBody(page->id, u"say \"hello\" OR not, title: yes"_s));
+
+        // None of these may reach FTS5 as syntax, which would fail with a warning.
+        QTest::failOnWarning(QRegularExpression(u".*"_s));
+        for (const QString &text :
+            {u"\""_s, u"\"hello"_s, u"*"_s, u"OR"_s, u"hello OR"_s, u"NEAR(hello"_s, u"title:"_s,
+                u"title: yes"_s, u"-"_s, u"^hello"_s, u"(("_s, u"hello)"_s, u"   "_s, u""_s}) {
+            std::ignore = m_store->search(text);
+        }
+        QCOMPARE(m_store->search(u"\"hello\""_s).size(), 1);
+        QCOMPARE(m_store->search(u"OR not"_s).size(), 1);
+        QVERIFY(m_store->search(u"-"_s).isEmpty());
+    }
+
+    void searchHonoursLimitAndSeesNewText()
+    {
+        const auto folder = m_store->createFolder(kNoFolder, u"F"_s);
+        for (int i = 0; i < 5; ++i) {
+            const auto page = m_store->createPage(folder->id, u"Page %1"_s.arg(i));
+            QVERIFY(m_store->setPageBody(page->id, u"common word"_s));
+        }
+        QCOMPARE(m_store->search(u"common"_s, 3).size(), 3);
+        QCOMPARE(m_store->search(u"common"_s).size(), 5);
+
+        const auto page = m_store->createPage(folder->id, u"Fresh"_s);
+        QVERIFY(m_store->search(u"zebra"_s).isEmpty());
+        QVERIFY(m_store->setPageBody(page->id, u"a zebra"_s));
+        QCOMPARE(m_store->search(u"zebra"_s).size(), 1);
+        QVERIFY(m_store->renamePage(page->id, u"Stale"_s));
+        QCOMPARE(m_store->search(u"zebra"_s).constFirst().title, u"Stale"_s);
+        QVERIFY(m_store->deletePage(page->id));
+        QVERIFY(m_store->search(u"zebra"_s).isEmpty());
     }
 };
 

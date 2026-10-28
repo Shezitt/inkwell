@@ -132,12 +132,17 @@ SessionState MainWindow::captureSession() const
     return state;
 }
 
-void MainWindow::closeEvent(QCloseEvent *event)
+bool MainWindow::saveEverything(int timeoutMs)
 {
     m_editors->saveAll();
     m_sessionTimer->stop();
     m_writer.saveSession(captureSession());
-    if (m_writer.flush(kCloseFlushTimeoutMs)) {
+    return m_writer.flush(timeoutMs);
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    if (saveEverything(kCloseFlushTimeoutMs)) {
         event->accept();
         return;
     }

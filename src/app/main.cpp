@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "TerminationSignals.h"
 #include "core/BackgroundWriter.h"
 #include "core/Database.h"
 #include "core/NoteStore.h"
@@ -9,7 +10,12 @@
 
 #include <QApplication>
 #include <QCommandLineParser>
+#include <QDir>
+#include <QFileInfo>
+#include <QLockFile>
 #include <QMessageBox>
+#include <QPointer>
+#include <QSessionManager>
 
 using namespace Qt::StringLiterals;
 
@@ -30,6 +36,20 @@ int main(int argc, char *argv[])
     QApplication::setApplicationVersion(QStringLiteral(INKWELL_VERSION));
     QApplication::setDesktopFileName(u"io.github.shezitt.Inkwell"_s);
 
+    // Set once the window is up. Until then there is nothing to save.
+    QPointer<inkwell::MainWindow> mainWindow;
+
+    // Installed first so that a SIGTERM during startup is not lost either.
+    inkwell::TerminationSignals termination;
+    // kill, Ctrl+C in a terminal, or the system shutting down: save, then quit.
+    // exit() also ends the event loop of a startup dialog, where quit() would
+    // do nothing.
+    QObject::connect(&termination, &inkwell::TerminationSignals::received, &app, [&mainWindow] {
+        if (mainWindow)
+            mainWindow->saveEverything(5000);
+        QApplication::exit();
+    });
+
     QCommandLineParser parser;
     parser.setApplicationDescription(QApplication::translate("main", "A fast, native notes app."));
     parser.addHelpOption();
@@ -40,6 +60,23 @@ int main(int argc, char *argv[])
     parser.addOption(databaseOption);
     parser.process(app);
     const QString databasePath = parser.value(databaseOption);
+
+    // Two windows editing the same notebook would overwrite each other's
+    // changes. QLockFile detects locks left behind by a crashed instance (the
+    // owning process no longer exists) and takes them over.
+    QDir().mkpath(QFileInfo(databasePath).absolutePath());
+    QLockFile lock(databasePath + u".lock"_s);
+    lock.setStaleLockTime(0); // only the PID check decides whether a lock is stale
+    if (!lock.tryLock(100)) {
+        if (lock.error() == QLockFile::LockFailedError) {
+            QMessageBox::information(nullptr, QApplication::applicationName(),
+                QApplication::translate("main", "Inkwell is already running with this notebook."));
+            return 0;
+        }
+        fatal(QApplication::translate("main", "Could not lock the notes database at\n%1")
+                .arg(databasePath));
+        return 1;
+    }
 
     inkwell::Database db;
     if (!db.open(databasePath)) {
@@ -68,5 +105,11 @@ int main(int argc, char *argv[])
     inkwell::MainWindow window(store, writer);
     window.restoreSession(inkwell::session::load(db));
     window.show();
+    mainWindow = &window;
+
+    // Logging out: the session manager may end the process right after this.
+    QObject::connect(
+        &app, &QGuiApplication::commitDataRequest, &window,
+        [&window](QSessionManager &) { window.saveEverything(5000); }, Qt::DirectConnection);
     return QApplication::exec();
 }

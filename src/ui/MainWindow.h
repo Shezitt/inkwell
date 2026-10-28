@@ -31,6 +31,10 @@ public:
     void restoreSession(const SessionState &state);
     [[nodiscard]] SessionState captureSession() const;
 
+    /// Queues all edits and the session, then waits up to @p timeoutMs for
+    /// them to be durable. Returns false if they could not all be written.
+    bool saveEverything(int timeoutMs);
+
 protected:
     void closeEvent(QCloseEvent *event) override;
     void moveEvent(QMoveEvent *event) override;

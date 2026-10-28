@@ -275,6 +275,28 @@ private slots:
         QCOMPARE(namesUnder(m_model->folderIndex(root)), (QStringList {u"Child"_s, u"page"_s}));
     }
 
+    void listsPagesWithFolderPaths()
+    {
+        const auto work = m_store->createFolder(kNoFolder, u"Work"_s);
+        const auto projects = m_store->createFolder(work->id, u"Projects"_s);
+        const auto home = m_store->createFolder(kNoFolder, u"Home"_s);
+        const auto todo = m_store->createPage(work->id, u"Todo"_s);
+        const auto plan = m_store->createPage(projects->id, u"Plan"_s);
+        const auto list = m_store->createPage(home->id, u"List"_s);
+        createModel();
+
+        const QList<PageTreeModel::PageEntry> entries = m_model->pageEntries();
+        QCOMPARE(entries.size(), 3);
+        // Tree order: a folder's subfolders (and their pages) come before its own pages.
+        QCOMPARE(entries.at(0).id, plan->id);
+        QCOMPARE(entries.at(0).title, u"Plan"_s);
+        QCOMPARE(entries.at(0).folderPath, u"Work / Projects"_s);
+        QCOMPARE(entries.at(1).id, todo->id);
+        QCOMPARE(entries.at(1).folderPath, u"Work"_s);
+        QCOMPARE(entries.at(2).id, list->id);
+        QCOMPARE(entries.at(2).folderPath, u"Home"_s);
+    }
+
     void shiftsItemsWithinTheirFolder()
     {
         createModel();

@@ -5,10 +5,13 @@
 #include "Log.h"
 
 #include <QDateTime>
+#include <QHash>
 #include <QSqlError>
 #include <QSqlQuery>
 
 #include <algorithm>
+#include <limits>
+#include <utility>
 
 using namespace Qt::StringLiterals;
 
@@ -24,6 +27,29 @@ qint64 now()
 QVariant nullableId(qint64 id)
 {
     return id == 0 ? QVariant(QMetaType::fromType<qint64>()) : QVariant(id);
+}
+
+/// A WITH clause defining `live`: the folders not in the trash, directly or
+/// through one of their parents.
+const QString kLiveFolders
+    = u"WITH RECURSIVE live(id) AS ("
+      " SELECT id FROM folders WHERE parent_id IS NULL AND trashed_at IS NULL"
+      " UNION ALL"
+      " SELECT f.id FROM folders f JOIN live ON f.parent_id = live.id"
+      " WHERE f.trashed_at IS NULL) "_s;
+
+const QString &tableFor(TrashItem::Kind kind)
+{
+    static const QString folders = u"folders"_s;
+    static const QString pages = u"pages"_s;
+    return kind == TrashItem::Kind::Folder ? folders : pages;
+}
+
+const QString &parentColumnFor(TrashItem::Kind kind)
+{
+    static const QString folder = u"parent_id"_s;
+    static const QString page = u"folder_id"_s;
+    return kind == TrashItem::Kind::Folder ? folder : page;
 }
 
 /// Names and titles are single-line; collapse whitespace and newlines.
@@ -62,8 +88,9 @@ QList<Folder> NoteStore::folders() const
     QList<Folder> result;
     QSqlQuery query(m_db.connection());
     query.setForwardOnly(true);
-    if (!query.exec(u"SELECT id, COALESCE(parent_id, 0), name, position FROM folders"
-                    " ORDER BY parent_id, position, id"_s)) {
+    if (!query.exec(kLiveFolders
+            + u"SELECT id, COALESCE(parent_id, 0), name, position FROM folders"
+              " WHERE id IN live ORDER BY parent_id, position, id"_s)) {
         fail(query.lastError().text());
         return result;
     }
@@ -79,8 +106,10 @@ QList<Page> NoteStore::pages() const
     QList<Page> result;
     QSqlQuery query(m_db.connection());
     query.setForwardOnly(true);
-    if (!query.exec(u"SELECT id, folder_id, title, position, updated_at FROM pages"
-                    " ORDER BY folder_id, position, id"_s)) {
+    if (!query.exec(kLiveFolders
+            + u"SELECT id, folder_id, title, position, updated_at FROM pages"
+              " WHERE trashed_at IS NULL AND folder_id IN live"
+              " ORDER BY folder_id, position, id"_s)) {
         fail(query.lastError().text());
         return result;
     }
@@ -249,6 +278,143 @@ bool NoteStore::movePage(PageId id, FolderId folderId, int index)
     return tx.commit() || fail(m_db.lastError());
 }
 
+bool NoteStore::trashFolder(FolderId id)
+{
+    return moveToTrash(u"folders"_s, id);
+}
+
+bool NoteStore::trashPage(PageId id)
+{
+    return moveToTrash(u"pages"_s, id);
+}
+
+QList<TrashItem> NoteStore::trash() const
+{
+    // Every folder, trashed or not, to describe where trashed items were.
+    QHash<FolderId, std::pair<FolderId, QString>> folders;
+    QSqlQuery query(m_db.connection());
+    query.setForwardOnly(true);
+    if (!query.exec(u"SELECT id, COALESCE(parent_id, 0), name FROM folders"_s)) {
+        fail(query.lastError().text());
+        return {};
+    }
+    while (query.next()) {
+        folders.insert(
+            query.value(0).toLongLong(), {query.value(1).toLongLong(), query.value(2).toString()});
+    }
+    const auto location = [&folders](FolderId folder) {
+        QStringList names;
+        for (int depth = 0; folder != kNoFolder && depth < 1000; ++depth) {
+            const auto it = folders.constFind(folder);
+            if (it == folders.cend())
+                break;
+            names.prepend(it->second);
+            folder = it->first;
+        }
+        return names.join(u" / "_s);
+    };
+
+    QList<TrashItem> items;
+    if (!query.exec(
+            u"SELECT 0, id, name, COALESCE(parent_id, 0), trashed_at FROM folders"
+            " WHERE trashed_at IS NOT NULL"
+            " UNION ALL"
+            " SELECT 1, id, title, folder_id, trashed_at FROM pages WHERE trashed_at IS NOT NULL"
+            " ORDER BY 5 DESC, 2 DESC"_s)) {
+        fail(query.lastError().text());
+        return {};
+    }
+    while (query.next()) {
+        TrashItem item;
+        item.kind = query.value(0).toInt() == 0 ? TrashItem::Kind::Folder : TrashItem::Kind::Page;
+        item.id = query.value(1).toLongLong();
+        item.name = query.value(2).toString();
+        item.location = location(query.value(3).toLongLong());
+        item.trashedAt = query.value(4).toLongLong();
+        items.append(item);
+    }
+
+    // Pages that come back with a folder: everything inside it that was not
+    // trashed on its own, nor inside a subfolder that was.
+    QSqlQuery count(m_db.connection());
+    count.prepare(u"WITH RECURSIVE inside(id) AS ("
+                  " SELECT ? UNION ALL"
+                  " SELECT f.id FROM folders f JOIN inside ON f.parent_id = inside.id"
+                  " WHERE f.trashed_at IS NULL)"
+                  " SELECT COUNT(*) FROM pages WHERE folder_id IN inside AND trashed_at IS NULL"_s);
+    for (TrashItem &item : items) {
+        if (item.kind != TrashItem::Kind::Folder)
+            continue;
+        count.addBindValue(item.id);
+        if (count.exec() && count.next())
+            item.pageCount = count.value(0).toInt();
+    }
+    return items;
+}
+
+bool NoteStore::restore(TrashItem::Kind kind, qint64 id)
+{
+    Transaction tx(m_db);
+    if (!tx.isActive())
+        return fail(m_db.lastError());
+
+    const QString &table = tableFor(kind);
+    QSqlQuery query(m_db.connection());
+    query.prepare(u"SELECT COALESCE(%1, 0), trashed_at IS NOT NULL FROM %2 WHERE id = ?"_s.arg(
+        parentColumnFor(kind), table));
+    query.addBindValue(id);
+    if (!query.exec())
+        return fail(query.lastError().text());
+    if (!query.next())
+        return fail(u"no row %1 in %2"_s.arg(id).arg(table));
+    const FolderId parent = query.value(0).toLongLong();
+    bool inTrash = query.value(1).toBool();
+
+    // The trashed folders it is in, from the top down, come back first.
+    QList<std::pair<FolderId, FolderId>> trashedAncestors; // folder, its parent
+    query.prepare(
+        u"SELECT COALESCE(parent_id, 0), trashed_at IS NOT NULL FROM folders WHERE id = ?"_s);
+    for (FolderId folder = parent; folder != kNoFolder;) {
+        query.addBindValue(folder);
+        if (!query.exec() || !query.next())
+            return fail(u"no folder %1"_s.arg(folder));
+        const FolderId grandparent = query.value(0).toLongLong();
+        if (query.value(1).toBool())
+            trashedAncestors.prepend({folder, grandparent});
+        folder = grandparent;
+    }
+    if (!inTrash && trashedAncestors.isEmpty())
+        return fail(u"%1 %2 is not in the trash"_s.arg(table).arg(id));
+
+    const auto putBack = [this, &query](const QString &itemTable, const QString &parentColumn,
+                             qint64 item, FolderId itemParent) {
+        query.prepare(u"UPDATE %1 SET trashed_at = NULL WHERE id = ?"_s.arg(itemTable));
+        query.addBindValue(item);
+        return (query.exec() || fail(query.lastError().text()))
+            && place(itemTable, parentColumn, item, itemParent, std::numeric_limits<int>::max());
+    };
+    for (const auto &[folder, folderParent] : std::as_const(trashedAncestors)) {
+        if (!putBack(u"folders"_s, u"parent_id"_s, folder, folderParent))
+            return false;
+    }
+    if (inTrash && !putBack(table, parentColumnFor(kind), id, parent))
+        return false;
+    return tx.commit() || fail(m_db.lastError());
+}
+
+bool NoteStore::emptyTrash()
+{
+    Transaction tx(m_db);
+    if (!tx.isActive())
+        return fail(m_db.lastError());
+    // Deleting a folder also deletes everything inside it, through the foreign keys.
+    for (const QString &table : {u"folders"_s, u"pages"_s}) {
+        if (!m_db.exec(u"DELETE FROM %1 WHERE trashed_at IS NOT NULL"_s.arg(table)))
+            return fail(m_db.lastError());
+    }
+    return tx.commit() || fail(m_db.lastError());
+}
+
 bool NoteStore::pageExists(PageId id) const
 {
     QSqlQuery query(m_db.connection());
@@ -308,9 +474,11 @@ QList<SearchHit> NoteStore::search(const QString &text, int limit) const
     // bm25() is lower for better matches; weigh a word in the title like ten in the body.
     QSqlQuery sql(m_db.connection());
     sql.setForwardOnly(true);
-    sql.prepare(u"SELECT rowid, title, snippet(page_search, 1, ?, ?, '…', 12)"
-                " FROM page_search WHERE page_search MATCH ?"
-                " ORDER BY bm25(page_search, 10.0, 1.0) LIMIT ?"_s);
+    sql.prepare(kLiveFolders
+        + u"SELECT rowid, title, snippet(page_search, 1, ?, ?, '…', 12)"
+          " FROM page_search WHERE page_search MATCH ?"
+          " AND rowid IN (SELECT id FROM pages WHERE trashed_at IS NULL AND folder_id IN live)"
+          " ORDER BY bm25(page_search, 10.0, 1.0) LIMIT ?"_s);
     sql.addBindValue(QString(SearchHit::kMatchStart));
     sql.addBindValue(QString(SearchHit::kMatchEnd));
     sql.addBindValue(query);
@@ -346,6 +514,18 @@ bool NoteStore::rename(const QString &table, const QString &column, qint64 id, c
     return query.numRowsAffected() == 1 || fail(u"no row %1 in %2"_s.arg(id).arg(table));
 }
 
+bool NoteStore::moveToTrash(const QString &table, qint64 id)
+{
+    QSqlQuery query(m_db.connection());
+    query.prepare(u"UPDATE %1 SET trashed_at = ? WHERE id = ? AND trashed_at IS NULL"_s.arg(table));
+    query.addBindValue(now());
+    query.addBindValue(id);
+    if (!query.exec())
+        return fail(query.lastError().text());
+    return query.numRowsAffected() == 1
+        || fail(u"no row %1 in %2 outside the trash"_s.arg(id).arg(table));
+}
+
 bool NoteStore::remove(const QString &table, qint64 id)
 {
     QSqlQuery query(m_db.connection());
@@ -370,8 +550,9 @@ bool NoteStore::place(
         return fail(u"no row %1 in %2"_s.arg(id).arg(table));
 
     QList<qint64> order;
-    query.prepare(u"SELECT id FROM %1 WHERE %2 IS ? AND id != ? ORDER BY position, id"_s.arg(
-        table, parentColumn));
+    // Only siblings outside the trash count: positions are where items appear.
+    query.prepare(u"SELECT id FROM %1 WHERE %2 IS ? AND id != ? AND trashed_at IS NULL"
+                  " ORDER BY position, id"_s.arg(table, parentColumn));
     query.addBindValue(nullableId(parentId));
     query.addBindValue(id);
     if (!query.exec())

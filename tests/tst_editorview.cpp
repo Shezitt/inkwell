@@ -6,6 +6,7 @@
 #include <QSignalSpy>
 #include <QTabWidget>
 #include <QTest>
+#include <QWheelEvent>
 
 using namespace Qt::StringLiterals;
 using namespace inkwell;
@@ -146,6 +147,77 @@ private slots:
         QVERIFY(!view.selectFirstMatch({u"zebra"_s, u"--"_s}));
         QCOMPARE(selected(), u"proc"_s); // unchanged
         QVERIFY(!view.selectFirstMatch({}));
+    }
+
+    void zoomsTheText()
+    {
+        QString text;
+        quint32 seed = 7;
+        const QStringList words = {u"a"_s, u"marker"_s, u"gripper"_s, u"to"_s, u"the"_s,
+            u"recordings"_s, u"camera"_s, u"of"_s, u"slowly"_s, u"tray"_s};
+        for (int line = 0; line < 20; ++line) {
+            for (int word = 0; word < 40; ++word) {
+                seed = seed * 1664525u + 1013904223u;
+                text += words.at(int(seed >> 16) % words.size()) + u' ';
+            }
+            text += u'\n';
+        }
+        EditorView view(m_notebook->newPage(), text, *m_notebook->writer);
+        view.resize(1400, 500);
+        view.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&view));
+        const qreal normalSize = view.font().pointSizeF();
+        const int normalColumn = view.viewport()->width();
+        QCOMPARE(view.zoom(), 100);
+
+        view.setZoom(150);
+        QCOMPARE(view.zoom(), 150);
+        QCOMPARE(view.font().pointSizeF(), normalSize * 1.5);
+        // The text column widens along with the text...
+        QVERIFY(view.viewport()->width() > normalColumn);
+        // ...and the text is wrapped for it, not for the old width.
+        QCoreApplication::processEvents();
+        QCOMPARE(view.horizontalScrollBar()->maximum(), 0);
+
+        view.setZoom(50);
+        QCOMPARE(view.font().pointSizeF(), normalSize * 0.5);
+        QCoreApplication::processEvents();
+        QCOMPARE(view.horizontalScrollBar()->maximum(), 0);
+        view.setZoom(100);
+        QCoreApplication::processEvents(); // lets the scroll bar come back
+        QCOMPARE(view.font().pointSizeF(), normalSize);
+        QCOMPARE(view.viewport()->width(), normalColumn);
+        QCOMPARE(view.horizontalScrollBar()->maximum(), 0);
+        QVERIFY(!view.hasUnsavedChanges());
+    }
+
+    void zoomsWithCtrlAndTheWheel()
+    {
+        EditorView view(m_notebook->newPage(), u"text"_s, *m_notebook->writer);
+        QSignalSpy zoom(&view, &EditorView::zoomRequested);
+        const auto wheel = [&view](int delta, Qt::KeyboardModifiers modifiers) {
+            QWheelEvent event(QPointF(5, 5), view.mapToGlobal(QPointF(5, 5)), {}, {0, delta},
+                Qt::NoButton, modifiers, Qt::NoScrollPhase, false);
+            QCoreApplication::sendEvent(view.viewport(), &event);
+        };
+
+        wheel(120, Qt::ControlModifier);
+        wheel(-240, Qt::ControlModifier);
+        QCOMPARE(zoom.size(), 2);
+        QCOMPARE(zoom.at(0).at(0).toInt(), 1);
+        QCOMPARE(zoom.at(1).at(0).toInt(), -2);
+
+        // A touchpad's small movements add up to one step.
+        wheel(60, Qt::ControlModifier);
+        QCOMPARE(zoom.size(), 2);
+        wheel(60, Qt::ControlModifier);
+        QCOMPARE(zoom.size(), 3);
+        QCOMPARE(zoom.at(2).at(0).toInt(), 1);
+
+        // Without Ctrl the wheel scrolls, as usual.
+        wheel(120, Qt::NoModifier);
+        QCOMPARE(zoom.size(), 3);
+        QCOMPARE(view.zoom(), 100); // the editor only asks; its owner decides
     }
 
     void undoToSavedTextIsClean()

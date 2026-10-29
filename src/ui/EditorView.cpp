@@ -8,6 +8,7 @@
 #include <QFontMetricsF>
 #include <QScrollBar>
 #include <QTimer>
+#include <QWheelEvent>
 
 #include <algorithm>
 
@@ -48,7 +49,8 @@ EditorView::EditorView(PageId id, const QString &body, BackgroundWriter &writer,
     setBackgroundRole(QPalette::Base);
     setAutoFillBackground(true);
     setLineWrapMode(QPlainTextEdit::WidgetWidth);
-    setTabStopDistance(QFontMetricsF(font()).horizontalAdvance(QLatin1Char(' ')) * kTabStopSpaces);
+    m_baseFont = font();
+    updateTabStops();
     document()->setDocumentMargin(12);
 
     setPlainText(body);
@@ -168,6 +170,23 @@ bool EditorView::markdownHighlighting() const
     return m_highlighter->document() != nullptr;
 }
 
+void EditorView::setZoom(int percent)
+{
+    if (percent == m_zoom || percent <= 0)
+        return;
+    m_zoom = percent;
+    QFont zoomed = m_baseFont;
+    if (m_baseFont.pointSizeF() > 0)
+        zoomed.setPointSizeF(m_baseFont.pointSizeF() * percent / 100);
+    else
+        zoomed.setPixelSize(std::max(1, qRound(m_baseFont.pixelSize() * percent / 100.0)));
+    setFont(zoomed);
+    updateTabStops();
+    updateMargins();
+    if (markdownHighlighting())
+        m_highlighter->rehighlight(); // heading sizes follow the font
+}
+
 void EditorView::changeEvent(QEvent *event)
 {
     QPlainTextEdit::changeEvent(event);
@@ -208,9 +227,30 @@ void EditorView::applyPendingScroll()
 
 void EditorView::updateMargins()
 {
-    const int side = std::max(kMinSideMargin, (width() - kMaxTextWidth) / 2);
+    const int maxTextWidth = kMaxTextWidth * m_zoom / 100;
+    const int side = std::max(kMinSideMargin, (width() - maxTextWidth) / 2);
     if (viewportMargins().left() != side)
         setViewportMargins(side, 0, side, 0);
+}
+
+void EditorView::updateTabStops()
+{
+    setTabStopDistance(QFontMetricsF(font()).horizontalAdvance(QLatin1Char(' ')) * kTabStopSpaces);
+}
+
+void EditorView::wheelEvent(QWheelEvent *event)
+{
+    if (!(event->modifiers() & Qt::ControlModifier)) {
+        QPlainTextEdit::wheelEvent(event);
+        return;
+    }
+    // A mouse wheel moves 120 per notch; touchpads send many small deltas.
+    m_wheelDelta += event->angleDelta().y();
+    const int steps = m_wheelDelta / QWheelEvent::DefaultDeltasPerStep;
+    m_wheelDelta %= QWheelEvent::DefaultDeltasPerStep;
+    if (steps != 0)
+        emit zoomRequested(steps);
+    event->accept();
 }
 
 } // namespace inkwell

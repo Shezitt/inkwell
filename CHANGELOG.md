@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Zoom: View > Zoom In (Ctrl++ or Ctrl+=), Zoom Out (Ctrl+-) and Reset Zoom
+  (Ctrl+0), or Ctrl and the mouse wheel, make the text bigger or smaller in
+  all tabs, from 50% to 300%. The text column widens along with it, and the
+  zoom is remembered.
+
 ## [0.3.0] - 2026-10-28
 
 Nothing deleted by accident is lost any more, and Markdown is styled as you

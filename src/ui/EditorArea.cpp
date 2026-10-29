@@ -13,11 +13,15 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 #include <utility>
 
 namespace inkwell {
 
 namespace {
+
+/// Zoom levels in percent, as in web browsers.
+constexpr std::array kZoomLevels = {50, 67, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300};
 
 /// Upper bound for waiting on pending saves before (re)loading a page.
 constexpr int kLoadFlushTimeoutMs = 5000;
@@ -93,6 +97,8 @@ bool EditorArea::openPage(PageId id, const QString &title)
 
     auto *view = new EditorView(id, *body, m_writer, m_tabs);
     view->setMarkdownHighlighting(m_markdownHighlighting);
+    view->setZoom(m_zoom);
+    connect(view, &EditorView::zoomRequested, this, &EditorArea::zoomBy);
     m_editors.insert(id, view);
     connect(view, &EditorView::saveStateChanged, this, &EditorArea::saveStateChanged);
     connect(view, &QPlainTextEdit::cursorPositionChanged, this, [this, view] {
@@ -129,6 +135,29 @@ void EditorArea::setMarkdownHighlighting(bool enabled)
     m_markdownHighlighting = enabled;
     for (EditorView *view : std::as_const(m_editors))
         view->setMarkdownHighlighting(enabled);
+}
+
+void EditorArea::setZoom(int percent)
+{
+    percent = std::clamp(percent, kZoomLevels.front(), kZoomLevels.back());
+    if (percent == m_zoom)
+        return;
+    m_zoom = percent;
+    for (EditorView *view : std::as_const(m_editors))
+        view->setZoom(percent);
+    emit zoomChanged(percent);
+}
+
+void EditorArea::zoomBy(int steps)
+{
+    // The first level at or above the current zoom. From a zoom between two
+    // levels, that level is already one step up.
+    const auto above = std::lower_bound(kZoomLevels.cbegin(), kZoomLevels.cend(), m_zoom);
+    if (steps > 0 && *above != m_zoom)
+        --steps;
+    const int index
+        = std::clamp(int(above - kZoomLevels.cbegin()) + steps, 0, int(kZoomLevels.size()) - 1);
+    setZoom(kZoomLevels.at(size_t(index)));
 }
 
 void EditorArea::renamePage(PageId id, const QString &title)

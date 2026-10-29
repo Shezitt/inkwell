@@ -131,6 +131,17 @@ private slots:
         QVERIFY(!editor.hasUnsavedChanges());
     }
 
+    void headingsGrowWithTheZoom()
+    {
+        EditorView editor(m_notebook->newPage(), u"# Title\ntext"_s, *m_notebook->writer);
+        QTRY_VERIFY(isHighlighted(*editor.document()));
+        const qreal normal = formatAt(*editor.document(), 0, 3).fontPointSize();
+        QVERIFY(normal > editor.font().pointSizeF());
+
+        editor.setZoom(200);
+        QCOMPARE(formatAt(*editor.document(), 0, 3).fontPointSize(), normal * 2);
+    }
+
     void editorFollowsPaletteChanges()
     {
         EditorView editor(m_notebook->newPage(), u"- item"_s, *m_notebook->writer);

@@ -116,6 +116,71 @@ private slots:
         QVERIFY(area.editor(later)->markdownHighlighting());
     }
 
+    void zoomsEveryEditorThroughFixedLevels()
+    {
+        EditorArea area(*m_notebook->store, *m_notebook->writer);
+        QSignalSpy changed(&area, &EditorArea::zoomChanged);
+        const PageId open = newPage();
+        area.openPage(open, u"Open"_s);
+        QCOMPARE(area.zoom(), 100);
+
+        area.zoomIn();
+        QCOMPARE(area.zoom(), 110);
+        QCOMPARE(area.editor(open)->zoom(), 110);
+        area.zoomBy(3);
+        QCOMPARE(area.zoom(), 175);
+        area.zoomOut();
+        QCOMPARE(area.zoom(), 150);
+
+        // Opened later: same zoom.
+        const PageId later = newPage();
+        area.openPage(later, u"Later"_s);
+        QCOMPARE(area.editor(later)->zoom(), 150);
+
+        // The ends hold.
+        area.zoomBy(100);
+        QCOMPARE(area.zoom(), 300);
+        area.zoomBy(-100);
+        QCOMPARE(area.zoom(), 50);
+        changed.clear();
+        area.zoomOut();
+        QCOMPARE(changed.size(), 0); // already as small as it gets
+
+        area.resetZoom();
+        QCOMPARE(area.zoom(), 100);
+        QCOMPARE(area.editor(open)->zoom(), 100);
+        QCOMPARE(changed.size(), 1);
+        QCOMPARE(changed.constFirst().at(0).toInt(), 100);
+    }
+
+    void zoomsFromInBetweenLevels()
+    {
+        EditorArea area(*m_notebook->store, *m_notebook->writer);
+        area.setZoom(105); // a stored zoom need not be one of the levels
+        QCOMPARE(area.zoom(), 105);
+        area.zoomIn();
+        QCOMPARE(area.zoom(), 110);
+        area.setZoom(105);
+        area.zoomOut();
+        QCOMPARE(area.zoom(), 100);
+        area.setZoom(1000);
+        QCOMPARE(area.zoom(), 300);
+        area.setZoom(1);
+        QCOMPARE(area.zoom(), 50);
+    }
+
+    void zoomsWhenAnEditorAsks()
+    {
+        EditorArea area(*m_notebook->store, *m_notebook->writer);
+        const PageId a = newPage();
+        const PageId b = newPage();
+        area.openPage(a, u"A"_s);
+        area.openPage(b, u"B"_s);
+        emit area.editor(a)->zoomRequested(2); // Ctrl + wheel in one editor
+        QCOMPARE(area.zoom(), 125);
+        QCOMPARE(area.editor(b)->zoom(), 125); // all of them follow
+    }
+
     void renamesTabs()
     {
         EditorArea area(*m_notebook->store, *m_notebook->writer);

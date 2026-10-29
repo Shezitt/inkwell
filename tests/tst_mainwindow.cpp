@@ -228,6 +228,45 @@ private slots:
         QVERIFY(window.captureSession().markdownHighlighting);
     }
 
+    void zoomsWithTheKeyboard()
+    {
+        const PageId page = m_notebook->newPage(u"text"_s);
+        SessionState state;
+        state.tabs = {{page, 0, 0}};
+        state.currentTab = 0;
+        MainWindow window(*m_notebook->store, *m_notebook->writer);
+        window.restoreSession(state);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowActive(&window));
+        EditorView *editor = window.findChild<EditorArea *>()->editor(page);
+
+        QTest::keyClick(&window, Qt::Key_Equal, Qt::ControlModifier);
+        QCOMPARE(editor->zoom(), 110);
+        QCOMPARE(window.statusBar()->currentMessage(), u"Zoom: 110%"_s);
+        QTest::keyClick(&window, Qt::Key_Plus, Qt::ControlModifier);
+        QCOMPARE(editor->zoom(), 125);
+        QTest::keyClick(&window, Qt::Key_Minus, Qt::ControlModifier);
+        QCOMPARE(editor->zoom(), 110);
+        QCOMPARE(window.captureSession().zoom, 110);
+        QTest::keyClick(&window, Qt::Key_0, Qt::ControlModifier);
+        QCOMPARE(editor->zoom(), 100);
+        QCOMPARE(window.captureSession().zoom, 100);
+    }
+
+    void restoresTheZoom()
+    {
+        const PageId page = m_notebook->newPage(u"text"_s);
+        SessionState state;
+        state.tabs = {{page, 0, 0}};
+        state.currentTab = 0;
+        state.zoom = 150;
+        MainWindow window(*m_notebook->store, *m_notebook->writer);
+        window.restoreSession(state);
+        QCOMPARE(window.findChild<EditorArea *>()->editor(page)->zoom(), 150);
+        QCOMPARE(window.captureSession().zoom, 150);
+        QVERIFY(window.statusBar()->currentMessage().isEmpty()); // not announced at startup
+    }
+
     void skipsTabsOfMissingPages()
     {
         const PageId kept = m_notebook->newPage();

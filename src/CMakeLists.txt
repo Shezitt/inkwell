@@ -6,6 +6,7 @@ add_library(
   core/Database.cpp
   core/FuzzyMatch.cpp
   core/Log.cpp
+  core/MarkdownSyntax.cpp
   core/NoteStore.cpp
   core/Schema.cpp
   core/Session.cpp)

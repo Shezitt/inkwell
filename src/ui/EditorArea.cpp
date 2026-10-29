@@ -117,12 +117,10 @@ void EditorArea::closePage(PageId id)
         closeTab(m_tabs->indexOf(view), true);
 }
 
-void EditorArea::discardPages(const QList<PageId> &ids)
+void EditorArea::closePages(const QList<PageId> &ids)
 {
-    for (const PageId id : ids) {
-        if (EditorView *view = m_editors.value(id))
-            closeTab(m_tabs->indexOf(view), false);
-    }
+    for (const PageId id : ids)
+        closePage(id);
 }
 
 void EditorArea::renamePage(PageId id, const QString &title)

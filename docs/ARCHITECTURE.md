@@ -40,6 +40,7 @@ a GUI and leaves the door open to other front ends.
 | `ui/SearchPopup`           | Base of the search popups: input, results, keyboard handling       |
 | `ui/QuickSwitcher`         | Ctrl+P: open a page by (fuzzy) name                                |
 | `ui/PageSearch`            | Ctrl+Shift+F: full-text search, with snippets                      |
+| `ui/TrashDialog`           | Restores or permanently deletes what is in the trash               |
 | `ui/MainWindow`            | Wires everything together; session save/restore; status bar        |
 | `app/TerminationSignals`   | Turns SIGTERM/SIGINT/SIGHUP into a graceful, saving shutdown       |
 
@@ -85,6 +86,10 @@ erDiagram
   small `folders` and `pages` rows and never touches note contents, however
   large they get.
 - `session_values` (not shown) is a key/value table for the window layout.
+- `trashed_at` (not shown) on `folders` and `pages` marks items in the trash.
+  They keep their place and content; everything inside a trashed folder is
+  hidden with it without being marked. Queries for the tree, moves and search
+  only see folders reachable without passing through a trashed one.
 - `page_search` (not shown) is an FTS5 full-text index of titles and bodies,
   keyed by page id. Triggers on `pages` and `page_content` update it in the
   same transaction as every insert, rename, edit and delete, so it can never

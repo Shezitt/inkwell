@@ -149,21 +149,22 @@ private slots:
         QCOMPARE(renamed.size(), 1);
     }
 
-    void removesPage()
+    void movesPageToTrash()
     {
         createModel();
         const FolderId folder = PageTreeModel::id(m_model->createFolder(kNoFolder, u"F"_s));
         const PageId page = PageTreeModel::id(m_model->createPage(folder, u"P"_s));
 
         QSignalSpy removed(m_model.get(), &PageTreeModel::pagesRemoved);
-        QVERIFY(m_model->remove(m_model->pageIndex(page)));
+        QVERIFY(m_model->moveToTrash(m_model->pageIndex(page)));
         QVERIFY(!m_model->pageIndex(page).isValid());
         QCOMPARE(removed.size(), 1);
         QCOMPARE(removed.constFirst().at(0).value<QList<PageId>>(), QList<PageId> {page});
         QVERIFY(m_store->pages().isEmpty());
+        QCOMPARE(m_store->trash().size(), 1);
     }
 
-    void removesFolderSubtree()
+    void movesFolderWithItsContentToTrash()
     {
         createModel();
         const FolderId root = PageTreeModel::id(m_model->createFolder(kNoFolder, u"Root"_s));
@@ -179,7 +180,7 @@ private slots:
         QCOMPARE(under, (QList<PageId> {p1, p2}));
 
         QSignalSpy removed(m_model.get(), &PageTreeModel::pagesRemoved);
-        QVERIFY(m_model->remove(rootIndex));
+        QVERIFY(m_model->moveToTrash(rootIndex));
 
         QCOMPARE(m_model->rowCount(), 1);
         QVERIFY(!m_model->folderIndex(child).isValid());
@@ -391,10 +392,32 @@ private slots:
         QVERIFY(!m_model->dropMimeData(rootData.get(), Qt::MoveAction, -1, -1, childIndex));
         QVERIFY(!m_model->dropMimeData(&foreign, Qt::MoveAction, -1, -1, childIndex));
 
-        // A page deleted while it was being dragged cannot be dropped.
-        QVERIFY(m_model->remove(m_model->pageIndex(page)));
+        // A page trashed while it was being dragged cannot be dropped.
+        QVERIFY(m_model->moveToTrash(m_model->pageIndex(page)));
         QVERIFY(!m_model->dropMimeData(pageData.get(), Qt::MoveAction, -1, -1, childIndex));
         QCOMPARE(namesUnder(m_model->folderIndex(root)), QStringList {u"Child"_s});
+    }
+
+    void restoresFromTrash()
+    {
+        createModel();
+        const FolderId work = PageTreeModel::id(m_model->createFolder(kNoFolder, u"Work"_s));
+        const FolderId sub = PageTreeModel::id(m_model->createFolder(work, u"Sub"_s));
+        const PageId page = PageTreeModel::id(m_model->createPage(sub, u"page"_s));
+        QVERIFY(m_model->moveToTrash(m_model->folderIndex(work)));
+        QCOMPARE(m_model->rowCount(), 0);
+
+        QSignalSpy reset(m_model.get(), &QAbstractItemModel::modelReset);
+        QVERIFY(m_model->restoreFromTrash(TrashItem::Kind::Folder, work));
+        QCOMPARE(reset.size(), 1);
+        QCOMPARE(namesUnder(), QStringList {u"Work"_s});
+        QVERIFY(m_model->pageIndex(page).isValid());
+        QCOMPARE(m_model->containingFolder(m_model->pageIndex(page)), sub);
+
+        QSignalSpy errors(m_model.get(), &PageTreeModel::errorOccurred);
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression(u".*"_s));
+        QVERIFY(!m_model->restoreFromTrash(TrashItem::Kind::Folder, work)); // not in the trash
+        QCOMPARE(errors.size(), 1);
     }
 
     void reportsStoreErrors()

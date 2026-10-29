@@ -95,6 +95,15 @@ const QList<Migration> &migrations()
                 "  DELETE FROM page_search WHERE rowid = old.id;"
                 " END"_s,
             }},
+        {4,
+            {
+                // Deleting moves a folder or page to the trash: it keeps its place
+                // in the tree and its content, and this is set to when it was
+                // trashed. NULL means not in the trash. Items inside a trashed
+                // folder are hidden with it without being marked themselves.
+                u"ALTER TABLE folders ADD COLUMN trashed_at INTEGER"_s,
+                u"ALTER TABLE pages ADD COLUMN trashed_at INTEGER"_s,
+            }},
     };
     return list;
 }

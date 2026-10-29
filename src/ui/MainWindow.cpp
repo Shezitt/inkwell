@@ -7,6 +7,7 @@
 #include "PageSearch.h"
 #include "PageTreeModel.h"
 #include "QuickSwitcher.h"
+#include "TrashDialog.h"
 #include "core/BackgroundWriter.h"
 
 #include <QApplication>
@@ -30,11 +31,14 @@ constexpr int kCloseFlushTimeoutMs = 5000;
 constexpr int kSessionSaveDelayMs = 1000;
 /// How long opening search may wait for the latest edits to be indexed.
 constexpr int kSearchFlushTimeoutMs = 1000;
+/// How long short notices stay in the status bar.
+constexpr int kStatusMessageMs = 5000;
 
 } // namespace
 
 MainWindow::MainWindow(NoteStore &store, BackgroundWriter &writer, QWidget *parent)
     : QMainWindow(parent)
+    , m_store(store)
     , m_writer(writer)
     , m_model(new PageTreeModel(store, this))
     , m_navigation(new NavigationPane(m_model, this))
@@ -69,7 +73,11 @@ MainWindow::MainWindow(NoteStore &store, BackgroundWriter &writer, QWidget *pare
         m_navigation, &NavigationPane::newPageNamed, m_editors, &EditorArea::focusCurrentEditor);
     connect(m_model, &PageTreeModel::pageRenamed, m_editors, &EditorArea::renamePage);
     connect(m_model, &PageTreeModel::pageRenamed, this, &MainWindow::updateWindowTitle);
-    connect(m_model, &PageTreeModel::pagesRemoved, m_editors, &EditorArea::discardPages);
+    // Trashed pages keep their text, including edits not saved yet.
+    connect(m_model, &PageTreeModel::pagesRemoved, m_editors, &EditorArea::closePages);
+    connect(m_navigation, &NavigationPane::movedToTrash, this, [this](const QString &name) {
+        statusBar()->showMessage(tr("Moved “%1” to the Trash").arg(name), kStatusMessageMs);
+    });
     connect(m_editors, &EditorArea::currentPageChanged, this, [this](PageId id) {
         m_navigation->revealPage(id);
         updateWindowTitle();
@@ -210,6 +218,13 @@ void MainWindow::createActions()
         m_editors->saveAll();
         m_writer.flush(kSearchFlushTimeoutMs);
         m_pageSearch->popup(this);
+    });
+    file->addSeparator();
+
+    file->addAction(m_navigation->showTrashAction());
+    connect(m_navigation->showTrashAction(), &QAction::triggered, this, [this] {
+        TrashDialog dialog(m_store, m_model, this);
+        dialog.exec();
     });
     file->addSeparator();
 

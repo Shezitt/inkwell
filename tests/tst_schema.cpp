@@ -21,9 +21,19 @@ QStringList tables(Database &db)
     return names;
 }
 
+/// Turns a migrated database back into a version 3 one, without the trash.
+bool downgradeToVersion3(Database &db)
+{
+    return db.exec(u"ALTER TABLE folders DROP COLUMN trashed_at"_s)
+        && db.exec(u"ALTER TABLE pages DROP COLUMN trashed_at"_s)
+        && db.exec(u"PRAGMA user_version = 3"_s);
+}
+
 /// Turns a migrated database back into a version 2 one, without the search index.
 bool downgradeToVersion2(Database &db)
 {
+    if (!downgradeToVersion3(db))
+        return false;
     for (const QString &trigger : {u"page_search_add"_s, u"page_search_body"_s,
              u"page_search_title"_s, u"page_search_remove"_s}) {
         if (!db.exec(u"DROP TRIGGER %1"_s.arg(trigger)))
@@ -81,7 +91,8 @@ private slots:
         QVERIFY(db.exec(u"DROP TABLE session_tabs"_s));
         QVERIFY(db.exec(u"DROP TABLE session_values"_s));
         QVERIFY(db.exec(u"PRAGMA user_version = 1"_s));
-        QVERIFY(db.exec(u"INSERT INTO folders VALUES (1, NULL, 'kept', 0, 0, 0)"_s));
+        QVERIFY(db.exec(
+            u"INSERT INTO folders (id, parent_id, name, position, created_at, updated_at) VALUES (1, NULL, 'kept', 0, 0, 0)"_s));
 
         QVERIFY(schema::migrate(db));
         QCOMPARE(schema::version(db), schema::latestVersion());
@@ -97,10 +108,13 @@ private slots:
         QVERIFY(db.open(u":memory:"_s));
         QVERIFY(schema::migrate(db));
         QVERIFY(downgradeToVersion2(db));
-        QVERIFY(db.exec(u"INSERT INTO folders VALUES (1, NULL, 'f', 0, 0, 0)"_s));
-        QVERIFY(db.exec(u"INSERT INTO pages VALUES (1, 1, 'Robot trials', 0, 0, 0)"_s));
+        QVERIFY(db.exec(
+            u"INSERT INTO folders (id, parent_id, name, position, created_at, updated_at) VALUES (1, NULL, 'f', 0, 0, 0)"_s));
+        QVERIFY(db.exec(
+            u"INSERT INTO pages (id, folder_id, title, position, created_at, updated_at) VALUES (1, 1, 'Robot trials', 0, 0, 0)"_s));
         QVERIFY(db.exec(u"INSERT INTO page_content VALUES (1, 'the gripper opened')"_s));
-        QVERIFY(db.exec(u"INSERT INTO pages VALUES (2, 1, 'Groceries', 0, 0, 0)"_s));
+        QVERIFY(db.exec(
+            u"INSERT INTO pages (id, folder_id, title, position, created_at, updated_at) VALUES (2, 1, 'Groceries', 0, 0, 0)"_s));
         QVERIFY(db.exec(u"INSERT INTO page_content VALUES (2, 'milk')"_s));
 
         QVERIFY(schema::migrate(db));
@@ -113,11 +127,15 @@ private slots:
         Database db;
         QVERIFY(db.open(u":memory:"_s));
         QVERIFY(schema::migrate(db));
-        QVERIFY(db.exec(u"INSERT INTO folders VALUES (1, NULL, 'root', 0, 0, 0)"_s));
-        QVERIFY(db.exec(u"INSERT INTO folders VALUES (2, 1, 'child', 0, 0, 0)"_s));
-        QVERIFY(db.exec(u"INSERT INTO pages VALUES (1, 2, 'Tema 5', 0, 0, 0)"_s));
+        QVERIFY(db.exec(
+            u"INSERT INTO folders (id, parent_id, name, position, created_at, updated_at) VALUES (1, NULL, 'root', 0, 0, 0)"_s));
+        QVERIFY(db.exec(
+            u"INSERT INTO folders (id, parent_id, name, position, created_at, updated_at) VALUES (2, 1, 'child', 0, 0, 0)"_s));
+        QVERIFY(db.exec(
+            u"INSERT INTO pages (id, folder_id, title, position, created_at, updated_at) VALUES (1, 2, 'Tema 5', 0, 0, 0)"_s));
         QVERIFY(db.exec(u"INSERT INTO page_content VALUES (1, 'La caché del procesador')"_s));
-        QVERIFY(db.exec(u"INSERT INTO pages VALUES (2, 1, 'Other', 0, 0, 0)"_s));
+        QVERIFY(db.exec(
+            u"INSERT INTO pages (id, folder_id, title, position, created_at, updated_at) VALUES (2, 1, 'Other', 0, 0, 0)"_s));
         QVERIFY(db.exec(u"INSERT INTO page_content VALUES (2, '')"_s));
 
         // New pages, ignoring case and accents, and word prefixes.
@@ -141,6 +159,26 @@ private slots:
         QSqlQuery query(db.connection());
         QVERIFY(query.exec(u"SELECT COUNT(*) FROM page_search"_s) && query.next());
         QCOMPARE(query.value(0).toInt(), 0);
+    }
+
+    void addsTheTrashKeepingNotes()
+    {
+        Database db;
+        QVERIFY(db.open(u":memory:"_s));
+        QVERIFY(schema::migrate(db));
+        QVERIFY(downgradeToVersion3(db));
+        QVERIFY(db.exec(
+            u"INSERT INTO folders (id, parent_id, name, position, created_at, updated_at) VALUES (1, NULL, 'f', 0, 0, 0)"_s));
+        QVERIFY(db.exec(
+            u"INSERT INTO pages (id, folder_id, title, position, created_at, updated_at) VALUES (1, 1, 'kept', 0, 0, 0)"_s));
+        QVERIFY(db.exec(u"INSERT INTO page_content VALUES (1, 'text')"_s));
+
+        QVERIFY(schema::migrate(db));
+        QSqlQuery query(db.connection());
+        QVERIFY(query.exec(u"SELECT title, trashed_at IS NULL FROM pages"_s) && query.next());
+        QCOMPARE(query.value(0).toString(), u"kept"_s);
+        QVERIFY(query.value(1).toBool()); // existing notes are not in the trash
+        QCOMPARE(search(db, u"text"_s), QList<qint64> {1});
     }
 
     void migrationIsIdempotent()
@@ -183,9 +221,12 @@ private slots:
         Database db;
         QVERIFY(db.open(u":memory:"_s));
         QVERIFY(schema::migrate(db));
-        QVERIFY(db.exec(u"INSERT INTO folders VALUES (1, NULL, 'root', 0, 0, 0)"_s));
-        QVERIFY(db.exec(u"INSERT INTO folders VALUES (2, 1, 'child', 0, 0, 0)"_s));
-        QVERIFY(db.exec(u"INSERT INTO pages VALUES (1, 2, 'page', 0, 0, 0)"_s));
+        QVERIFY(db.exec(
+            u"INSERT INTO folders (id, parent_id, name, position, created_at, updated_at) VALUES (1, NULL, 'root', 0, 0, 0)"_s));
+        QVERIFY(db.exec(
+            u"INSERT INTO folders (id, parent_id, name, position, created_at, updated_at) VALUES (2, 1, 'child', 0, 0, 0)"_s));
+        QVERIFY(db.exec(
+            u"INSERT INTO pages (id, folder_id, title, position, created_at, updated_at) VALUES (1, 2, 'page', 0, 0, 0)"_s));
         QVERIFY(db.exec(u"INSERT INTO page_content VALUES (1, 'hello')"_s));
 
         QVERIFY(db.exec(u"DELETE FROM folders WHERE id = 1"_s));
@@ -203,7 +244,8 @@ private slots:
         QVERIFY(db.open(u":memory:"_s));
         QVERIFY(schema::migrate(db));
         QTest::ignoreMessage(QtWarningMsg, QRegularExpression(u"FOREIGN KEY"_s));
-        QVERIFY(!db.exec(u"INSERT INTO pages VALUES (1, 99, 'orphan', 0, 0, 0)"_s));
+        QVERIFY(!db.exec(
+            u"INSERT INTO pages (id, folder_id, title, position, created_at, updated_at) VALUES (1, 99, 'orphan', 0, 0, 0)"_s));
     }
 };
 

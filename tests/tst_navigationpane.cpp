@@ -6,6 +6,7 @@
 #include "ui/PageTreeModel.h"
 
 #include <QAction>
+#include <QSignalSpy>
 #include <QTest>
 #include <QTreeView>
 
@@ -92,6 +93,43 @@ private slots:
 
         QTest::keyClick(view, Qt::Key_Down, Qt::ControlModifier | Qt::ShiftModifier);
         QCOMPARE(pagesIn(folder->id), (QStringList {u"a"_s, u"c"_s, u"b"_s}));
+    }
+
+    void movesSelectionToTrashWithDeleteKey()
+    {
+        const auto folder = m_store->createFolder(kNoFolder, u"F"_s);
+        const auto page = m_store->createPage(folder->id, u"Doomed"_s);
+        m_model = std::make_unique<PageTreeModel>(*m_store);
+        m_pane = std::make_unique<NavigationPane>(m_model.get());
+        m_pane->show();
+        QVERIFY(QTest::qWaitForWindowActive(m_pane.get()));
+        QTreeView *view = m_pane->view();
+        view->setFocus();
+        view->setCurrentIndex(m_model->pageIndex(page->id));
+
+        // No confirmation: it can be restored from the trash. A dialog would
+        // block here and fail the test.
+        QSignalSpy trashed(m_pane.get(), &NavigationPane::movedToTrash);
+        QTest::keyClick(view, Qt::Key_Delete);
+        QCOMPARE(trashed.size(), 1);
+        QCOMPARE(trashed.constFirst().at(0).toString(), u"Doomed"_s);
+        QVERIFY(!m_model->pageIndex(page->id).isValid());
+        QCOMPARE(m_store->trash().size(), 1);
+    }
+
+    void keepsFoldersOpenWhenTheTreeIsRebuilt()
+    {
+        const auto open = m_store->createFolder(kNoFolder, u"Open"_s);
+        const auto closed = m_store->createFolder(kNoFolder, u"Closed"_s);
+        const auto inner = m_store->createFolder(open->id, u"Inner"_s);
+        m_store->createPage(inner->id, u"p"_s);
+        m_store->createPage(closed->id, u"q"_s);
+        m_model = std::make_unique<PageTreeModel>(*m_store);
+        m_pane = std::make_unique<NavigationPane>(m_model.get());
+        m_pane->setExpandedFolders({open->id, inner->id});
+
+        m_model->reload();
+        QCOMPARE(m_pane->expandedFolders(), (QList<FolderId> {open->id, inner->id}));
     }
 
     void enablesDragAndDrop()

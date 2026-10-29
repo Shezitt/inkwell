@@ -51,6 +51,7 @@ private:
     void showError(const QString &message);
     void showAbout();
 
+    NoteStore &m_store;
     BackgroundWriter &m_writer;
     PageTreeModel *m_model;
     NavigationPane *m_navigation;

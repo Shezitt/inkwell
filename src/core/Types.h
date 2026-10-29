@@ -34,6 +34,21 @@ struct Page
     friend bool operator==(const Page &, const Page &) = default;
 };
 
+/// A folder or page in the trash, as listed by NoteStore::trash().
+struct TrashItem
+{
+    enum class Kind { Folder, Page };
+
+    Kind kind = Kind::Page;
+    qint64 id = 0;
+    QString name;
+    /// The folders it was in, from the top level down, joined by " / ".
+    QString location;
+    qint64 trashedAt = 0; ///< milliseconds since the Unix epoch
+    /// For folders: the pages inside, at any depth, that come back with it.
+    int pageCount = 0;
+};
+
 /// A page found by NoteStore::search().
 struct SearchHit
 {

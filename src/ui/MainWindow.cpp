@@ -15,6 +15,7 @@
 #include <QLabel>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QSignalBlocker>
 #include <QSplitter>
 #include <QStatusBar>
 #include <QTimer>
@@ -83,6 +84,10 @@ MainWindow::MainWindow(NoteStore &store, BackgroundWriter &writer, QWidget *pare
         updateWindowTitle();
     });
     connect(m_editors, &EditorArea::errorOccurred, this, &MainWindow::showError);
+    connect(m_editors, &EditorArea::zoomChanged, this, [this](int percent) {
+        statusBar()->showMessage(tr("Zoom: %1%").arg(percent), kStatusMessageMs);
+        scheduleSessionSave();
+    });
 
     m_cursorStatus->setContentsMargins(8, 0, 8, 0);
     m_saveStatus->setContentsMargins(8, 0, 8, 0);
@@ -139,6 +144,10 @@ void MainWindow::restoreSession(const SessionState &state)
     m_splitter->restoreState(state.splitterState);
     m_sidebarAction->setChecked(state.sidebarVisible);
     m_markdownAction->setChecked(state.markdownHighlighting);
+    {
+        const QSignalBlocker quietly(m_editors); // no "Zoom: …" message at startup
+        m_editors->setZoom(state.zoom);
+    }
     m_navigation->setExpandedFolders(state.expandedFolders);
 
     for (const TabState &tab : state.tabs) {
@@ -159,6 +168,7 @@ SessionState MainWindow::captureSession() const
     state.expandedFolders = m_navigation->expandedFolders();
     state.sidebarVisible = m_sidebarAction->isChecked();
     state.markdownHighlighting = m_markdownAction->isChecked();
+    state.zoom = m_editors->zoom();
     state.windowGeometry = saveGeometry();
     state.windowState = saveState();
     state.splitterState = m_splitter->saveState();
@@ -258,6 +268,18 @@ void MainWindow::createActions()
     m_markdownAction->setToolTip(tr("Style headings, emphasis, lists and code as you type"));
     connect(m_markdownAction, &QAction::toggled, m_editors, &EditorArea::setMarkdownHighlighting);
     connect(m_markdownAction, &QAction::toggled, this, &MainWindow::scheduleSessionSave);
+    view->addSeparator();
+
+    QAction *zoomIn = view->addAction(QIcon::fromTheme(u"zoom-in"_s), tr("Zoom &In"));
+    // Ctrl+= too: on most keyboards + needs Shift.
+    zoomIn->setShortcuts({QKeySequence::ZoomIn, QKeySequence(Qt::CTRL | Qt::Key_Equal)});
+    connect(zoomIn, &QAction::triggered, m_editors, &EditorArea::zoomIn);
+    QAction *zoomOut = view->addAction(QIcon::fromTheme(u"zoom-out"_s), tr("Zoom &Out"));
+    zoomOut->setShortcut(QKeySequence::ZoomOut);
+    connect(zoomOut, &QAction::triggered, m_editors, &EditorArea::zoomOut);
+    QAction *resetZoom = view->addAction(QIcon::fromTheme(u"zoom-original"_s), tr("&Reset Zoom"));
+    resetZoom->setShortcut(Qt::CTRL | Qt::Key_0);
+    connect(resetZoom, &QAction::triggered, m_editors, &EditorArea::resetZoom);
     view->addSeparator();
 
     QAction *next = view->addAction(tr("&Next Tab"));

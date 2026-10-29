@@ -33,6 +33,8 @@ public:
     /// Closes the tabs of @p ids that are open, saving them first.
     void closePages(const QList<PageId> &ids);
     void renamePage(PageId id, const QString &title);
+    /// Turns Markdown highlighting on or off in every editor, open or opened later.
+    void setMarkdownHighlighting(bool enabled);
 
     [[nodiscard]] EditorView *currentEditor() const;
     [[nodiscard]] EditorView *editor(PageId id) const { return m_editors.value(id); }
@@ -78,6 +80,7 @@ private:
     QTabWidget *m_tabs;
     QLabel *m_placeholder;
     QHash<PageId, EditorView *> m_editors;
+    bool m_markdownHighlighting = true;
 };
 
 } // namespace inkwell

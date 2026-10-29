@@ -6,6 +6,7 @@ add_library(
   core/Database.cpp
   core/FuzzyMatch.cpp
   core/Log.cpp
+  core/MarkdownSyntax.cpp
   core/NoteStore.cpp
   core/Schema.cpp
   core/Session.cpp)
@@ -21,6 +22,7 @@ add_library(
   ui/EditorArea.cpp
   ui/EditorView.cpp
   ui/MainWindow.cpp
+  ui/MarkdownHighlighter.cpp
   ui/NavigationPane.cpp
   ui/PageSearch.cpp
   ui/PageTreeModel.cpp

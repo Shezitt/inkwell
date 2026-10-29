@@ -27,6 +27,7 @@ struct SessionState
     int currentTab = -1;
     QList<FolderId> expandedFolders;
     bool sidebarVisible = true;
+    bool markdownHighlighting = true;
     QByteArray windowGeometry; ///< QWidget::saveGeometry()
     QByteArray windowState; ///< QMainWindow::saveState()
     QByteArray splitterState; ///< QSplitter::saveState()

@@ -203,6 +203,31 @@ private slots:
         QVERIFY(m_notebook->store->trash().isEmpty());
     }
 
+    void remembersWhetherMarkdownIsHighlighted()
+    {
+        const PageId page = m_notebook->newPage(u"# Title"_s);
+        SessionState state;
+        state.tabs = {{page, 0, 0}};
+        state.currentTab = 0;
+        state.markdownHighlighting = false;
+        MainWindow window(*m_notebook->store, *m_notebook->writer);
+        window.restoreSession(state);
+        EditorView *editor = window.findChild<EditorArea *>()->editor(page);
+        QVERIFY(!editor->markdownHighlighting());
+        QVERIFY(!window.captureSession().markdownHighlighting);
+
+        QAction *toggle = nullptr;
+        for (QAction *action : window.findChildren<QAction *>()) {
+            if (action->text().remove(u'&') == u"Markdown Highlighting"_s)
+                toggle = action;
+        }
+        QVERIFY(toggle && toggle->isCheckable());
+        QVERIFY(!toggle->isChecked());
+        toggle->trigger();
+        QVERIFY(editor->markdownHighlighting());
+        QVERIFY(window.captureSession().markdownHighlighting);
+    }
+
     void skipsTabsOfMissingPages()
     {
         const PageId kept = m_notebook->newPage();

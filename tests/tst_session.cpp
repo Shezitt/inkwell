@@ -46,6 +46,7 @@ private slots:
         const SessionState state = session::load(*m_db);
         QCOMPARE(state, SessionState());
         QVERIFY(state.sidebarVisible);
+        QVERIFY(state.markdownHighlighting);
         QCOMPARE(state.currentTab, -1);
     }
 
@@ -56,6 +57,7 @@ private slots:
         state.currentTab = 2;
         state.expandedFolders = {1, 3};
         state.sidebarVisible = false;
+        state.markdownHighlighting = false;
         state.windowGeometry = QByteArray("\x01\x02\x00\x03", 4);
         state.windowState = "state";
         state.splitterState = "splitter";

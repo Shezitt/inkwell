@@ -18,6 +18,7 @@ namespace {
 const QString kCurrentTab = u"current_tab"_s;
 const QString kExpandedFolders = u"expanded_folders"_s;
 const QString kSidebarVisible = u"sidebar_visible"_s;
+const QString kMarkdownHighlighting = u"markdown_highlighting"_s;
 const QString kWindowGeometry = u"window_geometry"_s;
 const QString kWindowState = u"window_state"_s;
 const QString kSplitterState = u"splitter_state"_s;
@@ -74,6 +75,7 @@ SessionState load(Database &db)
     state.currentTab = state.tabs.isEmpty() ? -1 : qBound(0, current, int(state.tabs.size()) - 1);
     state.expandedFolders = splitIds(values.value(kExpandedFolders).toString());
     state.sidebarVisible = values.value(kSidebarVisible, true).toBool();
+    state.markdownHighlighting = values.value(kMarkdownHighlighting, true).toBool();
     state.windowGeometry = values.value(kWindowGeometry).toByteArray();
     state.windowState = values.value(kWindowState).toByteArray();
     state.splitterState = values.value(kSplitterState).toByteArray();
@@ -112,8 +114,10 @@ bool save(Database &db, const SessionState &state)
     };
     const bool ok = put(kCurrentTab, state.currentTab)
         && put(kExpandedFolders, joinIds(state.expandedFolders))
-        && put(kSidebarVisible, state.sidebarVisible) && put(kWindowGeometry, state.windowGeometry)
-        && put(kWindowState, state.windowState) && put(kSplitterState, state.splitterState);
+        && put(kSidebarVisible, state.sidebarVisible)
+        && put(kMarkdownHighlighting, state.markdownHighlighting)
+        && put(kWindowGeometry, state.windowGeometry) && put(kWindowState, state.windowState)
+        && put(kSplitterState, state.splitterState);
     return ok && tx.commit();
 }
 

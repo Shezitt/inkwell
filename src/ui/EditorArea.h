@@ -36,6 +36,13 @@ public:
     /// Turns Markdown highlighting on or off in every editor, open or opened later.
     void setMarkdownHighlighting(bool enabled);
 
+    /// Text size in every editor, open or opened later, in percent of normal.
+    [[nodiscard]] int zoom() const { return m_zoom; }
+    /// Sets the zoom, kept between the smallest and largest zoom level.
+    void setZoom(int percent);
+    /// Moves @p steps zoom levels up (positive) or down, like a web browser.
+    void zoomBy(int steps);
+
     [[nodiscard]] EditorView *currentEditor() const;
     [[nodiscard]] EditorView *editor(PageId id) const { return m_editors.value(id); }
     [[nodiscard]] PageId currentPage() const;
@@ -56,6 +63,9 @@ public slots:
     void nextTab();
     void previousTab();
     void focusCurrentEditor();
+    void zoomIn() { zoomBy(1); }
+    void zoomOut() { zoomBy(-1); }
+    void resetZoom() { setZoom(100); }
 
 signals:
     /// The current tab changed; 0 when no tab is open.
@@ -67,6 +77,7 @@ signals:
     /// Tabs were opened, closed or reordered.
     void tabsChanged();
     void errorOccurred(const QString &message);
+    void zoomChanged(int percent);
 
 private:
     void closeTab(int index, bool save);
@@ -81,6 +92,7 @@ private:
     QLabel *m_placeholder;
     QHash<PageId, EditorView *> m_editors;
     bool m_markdownHighlighting = true;
+    int m_zoom = 100;
 };
 
 } // namespace inkwell

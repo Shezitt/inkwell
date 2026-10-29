@@ -31,6 +31,10 @@ written in C++20 with Qt 6.
 - **Quick switcher.** Press <kbd>Ctrl</kbd>+<kbd>P</kbd>, type a few letters
   of a page's name, press <kbd>Enter</kbd>. Matching is fuzzy, so `fbs` finds
   "Feedback for Sav".
+- **Zoom.** Make the text bigger or smaller with <kbd>Ctrl</kbd>+<kbd>+</kbd>
+  and <kbd>Ctrl</kbd>+<kbd>-</kbd>, or <kbd>Ctrl</kbd> and the mouse wheel, in
+  all tabs at once; <kbd>Ctrl</kbd>+<kbd>0</kbd> resets it. Inkwell remembers
+  the size.
 - **Markdown highlighting.** Headings, **bold**, *italic*, `code`, lists, task
   lists, quotes and links are styled as you type, in colours that follow your
   theme. Notes stay plain text; turn it off under View.
@@ -124,6 +128,8 @@ for instance on a synced folder, start Inkwell with
 | Close tab                  | <kbd>Ctrl</kbd>+<kbd>W</kbd>                     |
 | Next / previous tab        | <kbd>Ctrl</kbd>+<kbd>Tab</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Tab</kbd> |
 | Toggle sidebar             | <kbd>Ctrl</kbd>+<kbd>B</kbd>                     |
+| Zoom in / out              | <kbd>Ctrl</kbd>+<kbd>+</kbd> / <kbd>Ctrl</kbd>+<kbd>-</kbd>, or <kbd>Ctrl</kbd>+wheel |
+| Reset zoom                 | <kbd>Ctrl</kbd>+<kbd>0</kbd>                     |
 
 ## Roadmap
 

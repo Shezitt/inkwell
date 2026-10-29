@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-28
+
+Finding and organising notes: reorder pages and folders, jump to any page by
+name, and search the text of all pages.
+
+The first start upgrades the notebook with a search index of the existing
+pages. Earlier versions of Inkwell refuse to open it afterwards rather than
+risk damaging it.
+
 ### Added
 
 - Reorder pages and folders, or move them into another folder, by dragging
@@ -54,6 +63,7 @@ The first release: the foundation of Inkwell.
 - `--database` option to open a notebook from any location.
 - Desktop entry and icon for Linux.
 
-[Unreleased]: https://github.com/Shezitt/inkwell/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/Shezitt/inkwell/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Shezitt/inkwell/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/Shezitt/inkwell/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Shezitt/inkwell/releases/tag/v0.1.0

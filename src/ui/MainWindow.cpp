@@ -138,6 +138,7 @@ void MainWindow::restoreSession(const SessionState &state)
     restoreState(state.windowState);
     m_splitter->restoreState(state.splitterState);
     m_sidebarAction->setChecked(state.sidebarVisible);
+    m_markdownAction->setChecked(state.markdownHighlighting);
     m_navigation->setExpandedFolders(state.expandedFolders);
 
     for (const TabState &tab : state.tabs) {
@@ -157,6 +158,7 @@ SessionState MainWindow::captureSession() const
     state.currentTab = m_editors->currentIndex();
     state.expandedFolders = m_navigation->expandedFolders();
     state.sidebarVisible = m_sidebarAction->isChecked();
+    state.markdownHighlighting = m_markdownAction->isChecked();
     state.windowGeometry = saveGeometry();
     state.windowState = saveState();
     state.splitterState = m_splitter->saveState();
@@ -250,6 +252,12 @@ void MainWindow::createActions()
     m_sidebarAction->setShortcut(Qt::CTRL | Qt::Key_B);
     connect(m_sidebarAction, &QAction::toggled, m_navigation, &QWidget::setVisible);
     connect(m_sidebarAction, &QAction::toggled, this, &MainWindow::scheduleSessionSave);
+    m_markdownAction = view->addAction(tr("&Markdown Highlighting"));
+    m_markdownAction->setCheckable(true);
+    m_markdownAction->setChecked(true);
+    m_markdownAction->setToolTip(tr("Style headings, emphasis, lists and code as you type"));
+    connect(m_markdownAction, &QAction::toggled, m_editors, &EditorArea::setMarkdownHighlighting);
+    connect(m_markdownAction, &QAction::toggled, this, &MainWindow::scheduleSessionSave);
     view->addSeparator();
 
     QAction *next = view->addAction(tr("&Next Tab"));

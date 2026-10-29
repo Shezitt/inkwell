@@ -98,6 +98,24 @@ private slots:
         QCOMPARE(m_notebook->storedBody(a), u"kept"_s);
     }
 
+    void appliesMarkdownHighlightingToEveryEditor()
+    {
+        EditorArea area(*m_notebook->store, *m_notebook->writer);
+        const PageId open = newPage();
+        area.openPage(open, u"Open"_s);
+        QVERIFY(area.editor(open)->markdownHighlighting());
+
+        area.setMarkdownHighlighting(false);
+        QVERIFY(!area.editor(open)->markdownHighlighting());
+        const PageId later = newPage();
+        area.openPage(later, u"Later"_s);
+        QVERIFY(!area.editor(later)->markdownHighlighting());
+
+        area.setMarkdownHighlighting(true);
+        QVERIFY(area.editor(open)->markdownHighlighting());
+        QVERIFY(area.editor(later)->markdownHighlighting());
+    }
+
     void renamesTabs()
     {
         EditorArea area(*m_notebook->store, *m_notebook->writer);

@@ -92,6 +92,7 @@ bool EditorArea::openPage(PageId id, const QString &title)
     }
 
     auto *view = new EditorView(id, *body, m_writer, m_tabs);
+    view->setMarkdownHighlighting(m_markdownHighlighting);
     m_editors.insert(id, view);
     connect(view, &EditorView::saveStateChanged, this, &EditorArea::saveStateChanged);
     connect(view, &QPlainTextEdit::cursorPositionChanged, this, [this, view] {
@@ -121,6 +122,13 @@ void EditorArea::closePages(const QList<PageId> &ids)
 {
     for (const PageId id : ids)
         closePage(id);
+}
+
+void EditorArea::setMarkdownHighlighting(bool enabled)
+{
+    m_markdownHighlighting = enabled;
+    for (EditorView *view : std::as_const(m_editors))
+        view->setMarkdownHighlighting(enabled);
 }
 
 void EditorArea::renamePage(PageId id, const QString &title)

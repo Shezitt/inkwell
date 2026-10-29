@@ -22,6 +22,7 @@ add_library(
   ui/EditorArea.cpp
   ui/EditorView.cpp
   ui/MainWindow.cpp
+  ui/MarkdownHighlighter.cpp
   ui/NavigationPane.cpp
   ui/PageSearch.cpp
   ui/PageTreeModel.cpp

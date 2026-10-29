@@ -10,6 +10,7 @@ namespace inkwell {
 
 class AutosaveTimer;
 class BackgroundWriter;
+class MarkdownHighlighter;
 
 /// Plain-text editor for one page, with automatic, non-blocking saving.
 ///
@@ -47,11 +48,16 @@ public:
     /// into the middle of the view. Returns false if none occurs.
     bool selectFirstMatch(const QStringList &words);
 
+    /// Styles the Markdown in the text (see MarkdownHighlighter). On by default.
+    void setMarkdownHighlighting(bool enabled);
+    [[nodiscard]] bool markdownHighlighting() const;
+
 signals:
     /// hasUnsavedChanges() may have changed.
     void saveStateChanged();
 
 protected:
+    void changeEvent(QEvent *event) override;
     void focusOutEvent(QFocusEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void showEvent(QShowEvent *event) override;
@@ -63,6 +69,7 @@ private:
     PageId m_pageId;
     BackgroundWriter &m_writer;
     AutosaveTimer *m_autosave;
+    MarkdownHighlighter *m_highlighter;
     quint64 m_queuedTicket = 0; ///< ticket of the last save handed to the writer
     quint64 m_durableTicket = 0; ///< newest ticket the writer reported durable
     int m_pendingScroll = -1; ///< scroll position to apply once laid out

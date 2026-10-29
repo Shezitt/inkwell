@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "EditorView.h"
 
+#include "MarkdownHighlighter.h"
 #include "core/AutosaveTimer.h"
 #include "core/BackgroundWriter.h"
 
@@ -40,6 +41,7 @@ EditorView::EditorView(PageId id, const QString &body, BackgroundWriter &writer,
     , m_pageId(id)
     , m_writer(writer)
     , m_autosave(new AutosaveTimer(this))
+    , m_highlighter(new MarkdownHighlighter(static_cast<QObject *>(this)))
 {
     setFrameShape(QFrame::NoFrame);
     // Paint the margins around the text column like the text area itself.
@@ -51,6 +53,8 @@ EditorView::EditorView(PageId id, const QString &body, BackgroundWriter &writer,
 
     setPlainText(body);
     document()->setModified(false);
+    m_highlighter->setPalette(palette());
+    setMarkdownHighlighting(true);
 
     connect(document(), &QTextDocument::contentsChanged, m_autosave, &AutosaveTimer::notifyChanged);
     connect(document(), &QTextDocument::modificationChanged, this, &EditorView::saveStateChanged);
@@ -151,6 +155,25 @@ bool EditorView::selectFirstMatch(const QStringList &words)
     // Centre once laid out, which a page that was just opened is not yet.
     QTimer::singleShot(0, this, &QPlainTextEdit::centerCursor);
     return true;
+}
+
+void EditorView::setMarkdownHighlighting(bool enabled)
+{
+    if (enabled != markdownHighlighting())
+        m_highlighter->setDocument(enabled ? document() : nullptr);
+}
+
+bool EditorView::markdownHighlighting() const
+{
+    return m_highlighter->document() != nullptr;
+}
+
+void EditorView::changeEvent(QEvent *event)
+{
+    QPlainTextEdit::changeEvent(event);
+    // Follow the system switching between light and dark themes.
+    if (event->type() == QEvent::PaletteChange)
+        m_highlighter->setPalette(palette());
 }
 
 void EditorView::focusOutEvent(QFocusEvent *event)

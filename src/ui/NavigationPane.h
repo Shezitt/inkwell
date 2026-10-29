@@ -24,6 +24,8 @@ public:
     [[nodiscard]] QTreeView *view() const { return m_view; }
     [[nodiscard]] QAction *newPageAction() const { return m_newPage; }
     [[nodiscard]] QAction *newFolderAction() const { return m_newFolder; }
+    /// Opens the trash; shown as a button at the bottom of the pane.
+    [[nodiscard]] QAction *showTrashAction() const { return m_showTrash; }
 
     /// Selects @p id in the tree, expanding its folders, without emitting pageActivated().
     void revealPage(PageId id);
@@ -69,6 +71,7 @@ private:
     QAction *m_delete;
     QAction *m_moveUp;
     QAction *m_moveDown;
+    QAction *m_showTrash;
     PageId m_namingPage = 0;
     QList<FolderId> m_expandedBeforeReset;
 };

@@ -8,13 +8,17 @@
 #include "ui/PageSearch.h"
 #include "ui/PageTreeModel.h"
 #include "ui/QuickSwitcher.h"
+#include "ui/TrashDialog.h"
 
+#include <QAction>
 #include <QApplication>
 #include <QLineEdit>
 #include <QListView>
 #include <QStatusBar>
 #include <QTest>
+#include <QTimer>
 #include <QTreeView>
+#include <QTreeWidget>
 
 using namespace Qt::StringLiterals;
 using namespace inkwell;
@@ -171,6 +175,32 @@ private slots:
         QVERIFY(window.statusBar()->currentMessage().contains(u"Trash"_s));
         QVERIFY(m_notebook->writer->flush(5000));
         QCOMPARE(m_notebook->storedBody(page), u"saved and unsaved"_s);
+    }
+
+    void restoresFromTheTrashWindow()
+    {
+        const PageId page = m_notebook->newPage(u"text"_s);
+        MainWindow window(*m_notebook->store, *m_notebook->writer);
+        auto *navigation = window.findChild<NavigationPane *>();
+        navigation->revealPage(page);
+        navigation->trashSelected();
+        QVERIFY(!window.findChild<PageTreeModel *>()->pageIndex(page).isValid());
+
+        // The trash opens as a modal dialog; restore from it, then close it.
+        bool restored = false;
+        QTimer::singleShot(0, &window, [&restored] {
+            auto *dialog = qobject_cast<TrashDialog *>(QApplication::activeModalWidget());
+            QVERIFY(dialog);
+            dialog->items()->selectAll();
+            dialog->restoreSelected();
+            restored = true;
+            dialog->reject();
+        });
+        navigation->showTrashAction()->trigger();
+
+        QVERIFY(restored);
+        QVERIFY(window.findChild<PageTreeModel *>()->pageIndex(page).isValid());
+        QVERIFY(m_notebook->store->trash().isEmpty());
     }
 
     void skipsTabsOfMissingPages()

@@ -7,6 +7,7 @@
 #include "PageSearch.h"
 #include "PageTreeModel.h"
 #include "QuickSwitcher.h"
+#include "TrashDialog.h"
 #include "core/BackgroundWriter.h"
 
 #include <QApplication>
@@ -37,6 +38,7 @@ constexpr int kStatusMessageMs = 5000;
 
 MainWindow::MainWindow(NoteStore &store, BackgroundWriter &writer, QWidget *parent)
     : QMainWindow(parent)
+    , m_store(store)
     , m_writer(writer)
     , m_model(new PageTreeModel(store, this))
     , m_navigation(new NavigationPane(m_model, this))
@@ -216,6 +218,13 @@ void MainWindow::createActions()
         m_editors->saveAll();
         m_writer.flush(kSearchFlushTimeoutMs);
         m_pageSearch->popup(this);
+    });
+    file->addSeparator();
+
+    file->addAction(m_navigation->showTrashAction());
+    connect(m_navigation->showTrashAction(), &QAction::triggered, this, [this] {
+        TrashDialog dialog(m_store, m_model, this);
+        dialog.exec();
     });
     file->addSeparator();
 

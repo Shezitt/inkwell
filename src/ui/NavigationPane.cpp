@@ -81,6 +81,10 @@ NavigationPane::NavigationPane(PageTreeModel *model, QWidget *parent)
     connect(m_moveDown, &QAction::triggered, this, &NavigationPane::moveSelectedDown);
     m_view->addActions({m_rename, m_delete, m_moveUp, m_moveDown});
 
+    // Triggered by whoever owns the trash dialog.
+    m_showTrash = new QAction(QIcon::fromTheme(u"user-trash"_s), tr("&Trash…"), this);
+    m_showTrash->setToolTip(tr("Restore or permanently delete what you deleted"));
+
     auto *title = new QLabel(tr("Pages"), this);
     title->setStyleSheet(u"font-weight: 600;"_s);
     auto *header = new QHBoxLayout;
@@ -109,6 +113,15 @@ NavigationPane::NavigationPane(PageTreeModel *model, QWidget *parent)
     layout->setSpacing(0);
     layout->addLayout(header);
     layout->addWidget(m_view, 1);
+
+    auto *trash = toolButton(m_showTrash, this);
+    trash->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    trash->setText(tr("Trash"));
+    auto *footer = new QHBoxLayout;
+    footer->setContentsMargins(4, 2, 4, 4);
+    footer->addWidget(trash);
+    footer->addStretch();
+    layout->addLayout(footer);
 
     connect(m_view, &QTreeView::clicked, this, &NavigationPane::activate);
     connect(m_view, &QTreeView::activated, this, &NavigationPane::activate);

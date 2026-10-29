@@ -26,6 +26,7 @@ inkwell_add_test(tst_pagetreemodel SOURCES tst_pagetreemodel.cpp LIBRARIES inkwe
 inkwell_add_test(tst_navigationpane SOURCES tst_navigationpane.cpp LIBRARIES inkwell_ui)
 inkwell_add_test(tst_quickswitcher SOURCES tst_quickswitcher.cpp LIBRARIES inkwell_ui)
 inkwell_add_test(tst_pagesearch SOURCES tst_pagesearch.cpp LIBRARIES inkwell_ui)
+inkwell_add_test(tst_trashdialog SOURCES tst_trashdialog.cpp LIBRARIES inkwell_ui)
 inkwell_add_test(tst_autosavetimer SOURCES tst_autosavetimer.cpp LIBRARIES inkwell_core)
 inkwell_add_test(tst_editorview SOURCES tst_editorview.cpp TestNotebook.h LIBRARIES inkwell_ui)
 inkwell_add_test(tst_editorarea SOURCES tst_editorarea.cpp TestNotebook.h LIBRARIES inkwell_ui)

@@ -52,18 +52,27 @@ public:
     void setMarkdownHighlighting(bool enabled);
     [[nodiscard]] bool markdownHighlighting() const;
 
+    /// Shows the text at @p percent of its normal size. The text column widens
+    /// along, so lines keep about the same number of words.
+    void setZoom(int percent);
+    [[nodiscard]] int zoom() const { return m_zoom; }
+
 signals:
     /// hasUnsavedChanges() may have changed.
     void saveStateChanged();
+    /// Ctrl + mouse wheel: the user asked to zoom by @p steps, positive to zoom in.
+    void zoomRequested(int steps);
 
 protected:
     void changeEvent(QEvent *event) override;
     void focusOutEvent(QFocusEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void showEvent(QShowEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
 
 private:
     void updateMargins();
+    void updateTabStops();
     void applyPendingScroll();
 
     PageId m_pageId;
@@ -73,6 +82,9 @@ private:
     quint64 m_queuedTicket = 0; ///< ticket of the last save handed to the writer
     quint64 m_durableTicket = 0; ///< newest ticket the writer reported durable
     int m_pendingScroll = -1; ///< scroll position to apply once laid out
+    QFont m_baseFont; ///< the font at 100%
+    int m_zoom = 100;
+    int m_wheelDelta = 0; ///< Ctrl+wheel movement not yet turned into zoom steps
 };
 
 } // namespace inkwell

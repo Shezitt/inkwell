@@ -30,8 +30,8 @@ public:
     /// Opens @p id in a new tab, or switches to its tab if already open.
     bool openPage(PageId id, const QString &title);
     void closePage(PageId id);
-    /// Closes the tabs of deleted pages without saving them.
-    void discardPages(const QList<PageId> &ids);
+    /// Closes the tabs of @p ids that are open, saving them first.
+    void closePages(const QList<PageId> &ids);
     void renamePage(PageId id, const QString &title);
 
     [[nodiscard]] EditorView *currentEditor() const;

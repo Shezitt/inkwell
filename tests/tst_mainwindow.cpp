@@ -12,6 +12,7 @@
 #include <QApplication>
 #include <QLineEdit>
 #include <QListView>
+#include <QStatusBar>
 #include <QTest>
 #include <QTreeView>
 
@@ -146,6 +147,30 @@ private slots:
         QCOMPARE(window.captureSession().tabs.constFirst().page, page);
         QCOMPARE(editor->textCursor().selectedText(), u"zebra"_s);
         QTRY_COMPARE(QApplication::focusWidget(), editor);
+    }
+
+    void trashingAnOpenPageKeepsItsUnsavedText()
+    {
+        const PageId page = m_notebook->newPage(u"saved"_s);
+        SessionState state;
+        state.tabs = {{page, 0, 0}};
+        state.currentTab = 0;
+        MainWindow window(*m_notebook->store, *m_notebook->writer);
+        window.restoreSession(state);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowActive(&window));
+        EditorView *editor = window.findChild<EditorArea *>()->editor(page);
+        editor->moveCursor(QTextCursor::End);
+        QTest::keyClicks(editor, u" and unsaved"_s);
+
+        auto *navigation = window.findChild<NavigationPane *>();
+        navigation->revealPage(page);
+        navigation->trashSelected();
+
+        QVERIFY(window.captureSession().tabs.isEmpty());
+        QVERIFY(window.statusBar()->currentMessage().contains(u"Trash"_s));
+        QVERIFY(m_notebook->writer->flush(5000));
+        QCOMPARE(m_notebook->storedBody(page), u"saved and unsaved"_s);
     }
 
     void skipsTabsOfMissingPages()

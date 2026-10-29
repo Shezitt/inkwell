@@ -39,7 +39,8 @@ public slots:
     /// Creates a page next to the selection, opens it and starts renaming it.
     void createPage();
     void renameSelected();
-    void deleteSelected();
+    /// Moves the selected page or folder to the trash, without asking: it can be restored.
+    void trashSelected();
     /// Moves the selected item one place up or down within its folder.
     void moveSelectedUp();
     void moveSelectedDown();
@@ -49,6 +50,8 @@ signals:
     /// The user finished naming a page created with createPage().
     void newPageNamed(inkwell::PageId id);
     void expansionChanged();
+    /// An item named @p name was moved to the trash from the sidebar.
+    void movedToTrash(const QString &name);
 
 private:
     void showContextMenu(const QPoint &pos);
@@ -67,6 +70,7 @@ private:
     QAction *m_moveUp;
     QAction *m_moveDown;
     PageId m_namingPage = 0;
+    QList<FolderId> m_expandedBeforeReset;
 };
 
 } // namespace inkwell

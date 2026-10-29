@@ -370,14 +370,14 @@ bool PageTreeModel::rename(const QModelIndex &index, const QString &name)
     return true;
 }
 
-bool PageTreeModel::remove(const QModelIndex &index)
+bool PageTreeModel::moveToTrash(const QModelIndex &index)
 {
     const Node *node = nodeFor(index);
     if (!node)
         return false;
 
-    const bool ok = node->kind == Kind::Folder ? m_store.deleteFolder(node->id)
-                                               : m_store.deletePage(node->id);
+    const bool ok
+        = node->kind == Kind::Folder ? m_store.trashFolder(node->id) : m_store.trashPage(node->id);
     if (!ok) {
         emit errorOccurred(m_store.lastError());
         return false;
@@ -509,6 +509,18 @@ PageTreeModel::Node *PageTreeModel::dropTarget(const Node *node, const QModelInd
             return nullptr;
     }
     return target;
+}
+
+bool PageTreeModel::restoreFromTrash(TrashItem::Kind kind, qint64 id)
+{
+    if (!m_store.restore(kind, id)) {
+        emit errorOccurred(m_store.lastError());
+        return false;
+    }
+    // Restoring is rare and may bring back whole subtrees: rebuild instead of
+    // inserting rows one by one. Views keep their expanded folders across it.
+    reload();
+    return true;
 }
 
 PageTreeModel::Node *PageTreeModel::nodeFor(const QModelIndex &index) const

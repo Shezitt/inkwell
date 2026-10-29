@@ -66,10 +66,10 @@ NavigationPane::NavigationPane(PageTreeModel *model, QWidget *parent)
     m_rename->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     connect(m_rename, &QAction::triggered, this, &NavigationPane::renameSelected);
 
-    m_delete = new QAction(QIcon::fromTheme(u"edit-delete"_s), tr("&Delete"), this);
+    m_delete = new QAction(QIcon::fromTheme(u"user-trash"_s), tr("Move to &Trash"), this);
     m_delete->setShortcut(QKeySequence::Delete);
     m_delete->setShortcutContext(Qt::WidgetWithChildrenShortcut);
-    connect(m_delete, &QAction::triggered, this, &NavigationPane::deleteSelected);
+    connect(m_delete, &QAction::triggered, this, &NavigationPane::trashSelected);
     m_moveUp = new QAction(QIcon::fromTheme(u"go-up"_s), tr("Move &Up"), this);
     m_moveUp->setShortcut(Qt::CTRL | Qt::SHIFT | Qt::Key_Up);
     m_moveUp->setShortcutContext(Qt::WidgetWithChildrenShortcut);
@@ -121,6 +121,13 @@ NavigationPane::NavigationPane(PageTreeModel *model, QWidget *parent)
     connect(m_model, &QAbstractItemModel::rowsMoved, this, &NavigationPane::updateActions);
     connect(m_model, &QAbstractItemModel::rowsInserted, this, &NavigationPane::updateActions);
     connect(m_model, &QAbstractItemModel::rowsRemoved, this, &NavigationPane::updateActions);
+    // The model is rebuilt after restoring from the trash; keep folders open.
+    connect(m_model, &QAbstractItemModel::modelAboutToBeReset, this,
+        [this] { m_expandedBeforeReset = expandedFolders(); });
+    connect(m_model, &QAbstractItemModel::modelReset, this, [this] {
+        setExpandedFolders(std::exchange(m_expandedBeforeReset, {}));
+        updateActions();
+    });
     connect(m_view->itemDelegate(), &QAbstractItemDelegate::closeEditor, this, [this] {
         if (const PageId page = std::exchange(m_namingPage, 0))
             emit newPageNamed(page);
@@ -221,31 +228,14 @@ void NavigationPane::renameSelected()
         m_view->edit(index);
 }
 
-void NavigationPane::deleteSelected()
+void NavigationPane::trashSelected()
 {
     const QModelIndex index = m_view->currentIndex();
     if (!index.isValid())
         return;
-
     const QString name = index.data().toString();
-    QString question;
-    if (m_model->isFolder(index)) {
-        const qsizetype pages = m_model->pagesUnder(index).size();
-        question = pages == 0
-            ? tr("Delete the folder “%1”?").arg(name)
-            : tr("Delete the folder “%1” and the %n page(s) inside it?", nullptr, int(pages))
-                  .arg(name);
-    } else {
-        question = tr("Delete the page “%1”?").arg(name);
-    }
-
-    QMessageBox box(
-        QMessageBox::Warning, tr("Delete"), question, QMessageBox::Cancel | QMessageBox::Yes, this);
-    box.setInformativeText(tr("This cannot be undone."));
-    box.button(QMessageBox::Yes)->setText(tr("Delete"));
-    box.setDefaultButton(QMessageBox::Cancel);
-    if (box.exec() == QMessageBox::Yes)
-        m_model->remove(index);
+    if (m_model->moveToTrash(index))
+        emit movedToTrash(name);
 }
 
 void NavigationPane::moveSelectedUp()

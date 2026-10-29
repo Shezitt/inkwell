@@ -82,18 +82,20 @@ private slots:
         QCOMPARE(area.currentEditor()->toPlainText(), u"fresh"_s);
     }
 
-    void discardsDeletedPages()
+    void closesPagesKeepingTheirText()
     {
         EditorArea area(*m_notebook->store, *m_notebook->writer);
         const PageId a = newPage();
         const PageId b = newPage();
+        const PageId closedAlready = newPage();
         area.openPage(a, u"A"_s);
         area.openPage(b, u"B"_s);
-        area.editor(a)->insertPlainText(u"doomed"_s);
+        area.editor(a)->insertPlainText(u"kept"_s);
 
-        area.discardPages({a});
+        area.closePages({a, closedAlready});
         QCOMPARE(area.openPages(), QList<PageId> {b});
-        QVERIFY(!area.hasUnsavedChanges());
+        QVERIFY(m_notebook->writer->flush(5000));
+        QCOMPARE(m_notebook->storedBody(a), u"kept"_s);
     }
 
     void renamesTabs()

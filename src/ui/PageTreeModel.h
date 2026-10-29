@@ -86,8 +86,10 @@ public:
     /// Creates a page at the end of @p folderId and returns its index.
     QModelIndex createPage(FolderId folderId, const QString &title);
     bool rename(const QModelIndex &index, const QString &name);
-    /// Deletes a page, or a folder with everything inside it.
-    bool remove(const QModelIndex &index);
+    /// Moves a page, or a folder with everything inside it, to the trash.
+    bool moveToTrash(const QModelIndex &index);
+    /// Takes an item out of the trash (see NoteStore::restore()) and reloads the tree.
+    bool restoreFromTrash(TrashItem::Kind kind, qint64 id);
     /// Moves a page or folder into @p folderId (kNoFolder: top level, folders
     /// only), so that it ends up at @p position among the pages, or among the
     /// subfolders, there. Returns false, changing nothing, if the move is not
@@ -101,7 +103,7 @@ public:
 
 signals:
     void pageRenamed(inkwell::PageId id, const QString &title);
-    /// Emitted after pages were deleted, directly or with their folder.
+    /// Emitted after pages left the tree, moved to the trash directly or with their folder.
     void pagesRemoved(const QList<inkwell::PageId> &ids);
     void errorOccurred(const QString &message);
 

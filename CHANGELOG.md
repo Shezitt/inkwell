@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-28
+
+Nothing deleted by accident is lost any more, and Markdown is styled as you
+type.
+
+The first start upgrades the notebook for the trash. Earlier versions of
+Inkwell refuse to open it afterwards rather than risk damaging it.
+
 ### Added
 
 - Trash: deleting a page or folder moves it to the Trash instead of deleting
@@ -75,7 +83,8 @@ The first release: the foundation of Inkwell.
 - `--database` option to open a notebook from any location.
 - Desktop entry and icon for Linux.
 
-[Unreleased]: https://github.com/Shezitt/inkwell/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Shezitt/inkwell/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Shezitt/inkwell/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Shezitt/inkwell/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/Shezitt/inkwell/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Shezitt/inkwell/releases/tag/v0.1.0

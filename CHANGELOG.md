@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sidebar, or File > Trash…, opens a window to restore items or delete them
   permanently. Pages in the trash keep their text, including edits made just
   before deleting.
+- Markdown highlighting: headings, bold, italic, strikethrough, inline code,
+  fenced code blocks, quotes, lists, task lists, links and horizontal rules are
+  styled as you type, with the syntax characters dimmed. The text stays plain;
+  View > Markdown Highlighting turns it off, and the choice is remembered.
 
 ## [0.2.0] - 2026-10-28
 

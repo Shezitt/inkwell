@@ -31,6 +31,9 @@ written in C++20 with Qt 6.
 - **Quick switcher.** Press <kbd>Ctrl</kbd>+<kbd>P</kbd>, type a few letters
   of a page's name, press <kbd>Enter</kbd>. Matching is fuzzy, so `fbs` finds
   "Feedback for Sav".
+- **Markdown highlighting.** Headings, **bold**, *italic*, `code`, lists, task
+  lists, quotes and links are styled as you type, in colours that follow your
+  theme. Notes stay plain text; turn it off under View.
 - **Trash.** Deleting a page or folder moves it to the Trash, at the bottom of
   the sidebar, where you can restore it or delete it for good.
 - **Full-text search.** <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> finds the
@@ -128,7 +131,8 @@ v0.1 lays the foundation. Ideas for what comes next:
 
 - [x] Full-text search across all pages (SQLite FTS5)
 - [x] Drag and drop to reorder and move pages and folders
-- [ ] Markdown syntax highlighting and live preview
+- [x] Markdown syntax highlighting
+- [ ] Markdown live preview
 - [x] Trash, instead of permanent delete
 - [x] Quick switcher (<kbd>Ctrl</kbd>+<kbd>P</kbd>) to open pages by name
 - [ ] Dark theme and font settings

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Trash: deleting a page or folder moves it to the Trash instead of deleting
+  it for good, without asking first. The Trash button at the bottom of the
+  sidebar, or File > Trash…, opens a window to restore items or delete them
+  permanently. Pages in the trash keep their text, including edits made just
+  before deleting.
+
 ## [0.2.0] - 2026-10-28
 
 Finding and organising notes: reorder pages and folders, jump to any page by

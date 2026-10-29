@@ -31,6 +31,8 @@ written in C++20 with Qt 6.
 - **Quick switcher.** Press <kbd>Ctrl</kbd>+<kbd>P</kbd>, type a few letters
   of a page's name, press <kbd>Enter</kbd>. Matching is fuzzy, so `fbs` finds
   "Feedback for Sav".
+- **Trash.** Deleting a page or folder moves it to the Trash, at the bottom of
+  the sidebar, where you can restore it or delete it for good.
 - **Full-text search.** <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> finds the
   pages containing the words you type, as you type, with the matching line
   shown. Case and accents don't matter, so `cache` finds "Caché". Pick a result
@@ -113,7 +115,7 @@ for instance on a synced folder, start Inkwell with
 | Go to page                 | <kbd>Ctrl</kbd>+<kbd>P</kbd>                     |
 | Search in all pages        | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd>     |
 | Rename (in the sidebar)    | <kbd>F2</kbd>                                    |
-| Delete (in the sidebar)    | <kbd>Delete</kbd>                                |
+| Move to Trash (in the sidebar) | <kbd>Delete</kbd>                            |
 | Move up / down (in the sidebar) | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>↑</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>↓</kbd> |
 | Save now                   | <kbd>Ctrl</kbd>+<kbd>S</kbd> (optional)          |
 | Close tab                  | <kbd>Ctrl</kbd>+<kbd>W</kbd>                     |
@@ -127,7 +129,7 @@ v0.1 lays the foundation. Ideas for what comes next:
 - [x] Full-text search across all pages (SQLite FTS5)
 - [x] Drag and drop to reorder and move pages and folders
 - [ ] Markdown syntax highlighting and live preview
-- [ ] Trash with undo, instead of permanent delete
+- [x] Trash, instead of permanent delete
 - [x] Quick switcher (<kbd>Ctrl</kbd>+<kbd>P</kbd>) to open pages by name
 - [ ] Dark theme and font settings
 - [ ] Import and export (Markdown files)

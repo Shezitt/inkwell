@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (Ctrl+0), or Ctrl and the mouse wheel, make the text bigger or smaller in
   all tabs, from 50% to 300%. The text column widens along with it, and the
   zoom is remembered.
+- Hidden Markdown syntax: outside the line with the cursor, heading #s,
+  emphasis and code markers, and the brackets and URL of links are hidden, so
+  notes read as formatted text. The line being edited shows its syntax as it
+  is written. The text itself does not change. View > Hide Markdown Syntax
+  turns it off, and the choice is remembered.
 
 ## [0.3.0] - 2026-10-28
 

@@ -228,6 +228,41 @@ private slots:
         QVERIFY(window.captureSession().markdownHighlighting);
     }
 
+    void remembersWhetherMarkdownSyntaxIsHidden()
+    {
+        const PageId page = m_notebook->newPage(u"**bold**"_s);
+        SessionState state;
+        state.tabs = {{page, 0, 0}};
+        state.currentTab = 0;
+        state.hideMarkdownSyntax = false;
+        MainWindow window(*m_notebook->store, *m_notebook->writer);
+        window.restoreSession(state);
+        EditorView *editor = window.findChild<EditorArea *>()->editor(page);
+        QVERIFY(!editor->hidesMarkdownSyntax());
+        QVERIFY(!window.captureSession().hideMarkdownSyntax);
+
+        QAction *hide = nullptr;
+        QAction *highlight = nullptr;
+        for (QAction *action : window.findChildren<QAction *>()) {
+            if (action->text().remove(u'&') == u"Hide Markdown Syntax"_s)
+                hide = action;
+            if (action->text().remove(u'&') == u"Markdown Highlighting"_s)
+                highlight = action;
+        }
+        QVERIFY(hide && hide->isCheckable() && highlight);
+        QVERIFY(!hide->isChecked());
+        hide->trigger();
+        QVERIFY(editor->hidesMarkdownSyntax());
+        QVERIFY(window.captureSession().hideMarkdownSyntax);
+
+        // Only highlighted Markdown can be hidden.
+        QVERIFY(hide->isEnabled());
+        highlight->trigger();
+        QVERIFY(!hide->isEnabled());
+        highlight->trigger();
+        QVERIFY(hide->isEnabled());
+    }
+
     void zoomsWithTheKeyboard()
     {
         const PageId page = m_notebook->newPage(u"text"_s);

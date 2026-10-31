@@ -33,6 +33,8 @@ target_link_libraries(
   inkwell_ui
   PUBLIC inkwell_core Qt6::Widgets
   PRIVATE inkwell_warnings)
+qt_add_resources(inkwell_ui "fonts" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}/data" FILES
+                 "${PROJECT_SOURCE_DIR}/data/fonts/InkwellBlank.ttf")
 
 qt_add_executable(inkwell WIN32 MACOSX_BUNDLE app/main.cpp app/TerminationSignals.cpp)
 

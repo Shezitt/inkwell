@@ -28,6 +28,7 @@ struct SessionState
     QList<FolderId> expandedFolders;
     bool sidebarVisible = true;
     bool markdownHighlighting = true;
+    bool hideMarkdownSyntax = true; ///< outside the line being edited
     int zoom = 100; ///< editor text size, in percent
     QByteArray windowGeometry; ///< QWidget::saveGeometry()
     QByteArray windowState; ///< QMainWindow::saveState()

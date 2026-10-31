@@ -35,6 +35,8 @@ public:
     void renamePage(PageId id, const QString &title);
     /// Turns Markdown highlighting on or off in every editor, open or opened later.
     void setMarkdownHighlighting(bool enabled);
+    /// Hides Markdown syntax off the cursor line in every editor, open or opened later.
+    void setHideMarkdownSyntax(bool hide);
 
     /// Text size in every editor, open or opened later, in percent of normal.
     [[nodiscard]] int zoom() const { return m_zoom; }
@@ -92,6 +94,7 @@ private:
     QLabel *m_placeholder;
     QHash<PageId, EditorView *> m_editors;
     bool m_markdownHighlighting = true;
+    bool m_hideMarkdownSyntax = true;
     int m_zoom = 100;
 };
 

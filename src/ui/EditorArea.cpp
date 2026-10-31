@@ -97,6 +97,7 @@ bool EditorArea::openPage(PageId id, const QString &title)
 
     auto *view = new EditorView(id, *body, m_writer, m_tabs);
     view->setMarkdownHighlighting(m_markdownHighlighting);
+    view->setHideMarkdownSyntax(m_hideMarkdownSyntax);
     view->setZoom(m_zoom);
     connect(view, &EditorView::zoomRequested, this, &EditorArea::zoomBy);
     m_editors.insert(id, view);
@@ -135,6 +136,13 @@ void EditorArea::setMarkdownHighlighting(bool enabled)
     m_markdownHighlighting = enabled;
     for (EditorView *view : std::as_const(m_editors))
         view->setMarkdownHighlighting(enabled);
+}
+
+void EditorArea::setHideMarkdownSyntax(bool hide)
+{
+    m_hideMarkdownSyntax = hide;
+    for (EditorView *view : std::as_const(m_editors))
+        view->setHideMarkdownSyntax(hide);
 }
 
 void EditorArea::setZoom(int percent)

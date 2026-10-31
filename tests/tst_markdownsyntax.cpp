@@ -150,6 +150,25 @@ private slots:
         QCOMPARE(stateAfter({u"```a`b"_s}), LineState::Normal);
     }
 
+    void hideableSyntax()
+    {
+        QCOMPARE(styled(u"## Two ##"_s, Style::Hideable), (QStringList {u"## "_s, u" ##"_s}));
+        QCOMPARE(styled(u"#\tTab"_s, Style::Hideable), QStringList {u"#\t"_s});
+        QVERIFY(styled(u"##"_s, Style::Hideable).isEmpty()); // nothing would be left
+        QCOMPARE(styled(u"a **b** *c* ~~d~~ `e` ***f***"_s, Style::Hideable),
+            (QStringList {u"`"_s, u"`"_s, u"~~"_s, u"~~"_s, u"***"_s, u"***"_s, u"**"_s, u"**"_s,
+                u"*"_s, u"*"_s}));
+        QCOMPARE(styled(u"see [the docs](https://x.y \"Title\") now"_s, Style::Hideable),
+            (QStringList {u"["_s, u"](https://x.y \"Title\")"_s}));
+
+        // Bare URLs stay, and so does the syntax of whole lines.
+        for (const QString &line : {u"go to https://example.com"_s, u"- [ ] item"_s, u"> quote"_s,
+                 u"```cpp"_s, u"---"_s, u"1. first"_s}) {
+            QVERIFY2(styled(line, Style::Hideable).isEmpty(), qPrintable(line));
+        }
+        QVERIFY(styled(u"*x*"_s, Style::Hideable, LineState::InBacktickFence).isEmpty());
+    }
+
     void plainTextHasNoSpans()
     {
         QList<Span> spans;

@@ -47,6 +47,7 @@ private slots:
         QCOMPARE(state, SessionState());
         QVERIFY(state.sidebarVisible);
         QVERIFY(state.markdownHighlighting);
+        QVERIFY(state.hideMarkdownSyntax);
         QCOMPARE(state.zoom, 100);
         QCOMPARE(state.currentTab, -1);
     }
@@ -59,6 +60,7 @@ private slots:
         state.expandedFolders = {1, 3};
         state.sidebarVisible = false;
         state.markdownHighlighting = false;
+        state.hideMarkdownSyntax = false;
         state.zoom = 150;
         state.windowGeometry = QByteArray("\x01\x02\x00\x03", 4);
         state.windowState = "state";

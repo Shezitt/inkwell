@@ -63,6 +63,7 @@ private:
     QLabel *m_cursorStatus;
     QAction *m_sidebarAction = nullptr;
     QAction *m_markdownAction = nullptr;
+    QAction *m_hideSyntaxAction = nullptr;
     QTimer *m_sessionTimer;
     bool m_saveFailing = false;
 };

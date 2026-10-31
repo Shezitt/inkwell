@@ -144,6 +144,7 @@ void MainWindow::restoreSession(const SessionState &state)
     m_splitter->restoreState(state.splitterState);
     m_sidebarAction->setChecked(state.sidebarVisible);
     m_markdownAction->setChecked(state.markdownHighlighting);
+    m_hideSyntaxAction->setChecked(state.hideMarkdownSyntax);
     {
         const QSignalBlocker quietly(m_editors); // no "Zoom: …" message at startup
         m_editors->setZoom(state.zoom);
@@ -168,6 +169,7 @@ SessionState MainWindow::captureSession() const
     state.expandedFolders = m_navigation->expandedFolders();
     state.sidebarVisible = m_sidebarAction->isChecked();
     state.markdownHighlighting = m_markdownAction->isChecked();
+    state.hideMarkdownSyntax = m_hideSyntaxAction->isChecked();
     state.zoom = m_editors->zoom();
     state.windowGeometry = saveGeometry();
     state.windowState = saveState();
@@ -268,6 +270,15 @@ void MainWindow::createActions()
     m_markdownAction->setToolTip(tr("Style headings, emphasis, lists and code as you type"));
     connect(m_markdownAction, &QAction::toggled, m_editors, &EditorArea::setMarkdownHighlighting);
     connect(m_markdownAction, &QAction::toggled, this, &MainWindow::scheduleSessionSave);
+    m_hideSyntaxAction = view->addAction(tr("&Hide Markdown Syntax"));
+    m_hideSyntaxAction->setCheckable(true);
+    m_hideSyntaxAction->setChecked(true);
+    m_hideSyntaxAction->setToolTip(
+        tr("Show formatted text, with the Markdown syntax only on the line being edited"));
+    // Hiding is part of highlighting: without it there is nothing to hide.
+    connect(m_markdownAction, &QAction::toggled, m_hideSyntaxAction, &QAction::setEnabled);
+    connect(m_hideSyntaxAction, &QAction::toggled, m_editors, &EditorArea::setHideMarkdownSyntax);
+    connect(m_hideSyntaxAction, &QAction::toggled, this, &MainWindow::scheduleSessionSave);
     view->addSeparator();
 
     QAction *zoomIn = view->addAction(QIcon::fromTheme(u"zoom-in"_s), tr("Zoom &In"));

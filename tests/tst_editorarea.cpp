@@ -116,6 +116,24 @@ private slots:
         QVERIFY(area.editor(later)->markdownHighlighting());
     }
 
+    void hidesMarkdownSyntaxInEveryEditor()
+    {
+        EditorArea area(*m_notebook->store, *m_notebook->writer);
+        const PageId open = newPage();
+        area.openPage(open, u"Open"_s);
+        QVERIFY(area.editor(open)->hidesMarkdownSyntax());
+
+        area.setHideMarkdownSyntax(false);
+        QVERIFY(!area.editor(open)->hidesMarkdownSyntax());
+        const PageId later = newPage();
+        area.openPage(later, u"Later"_s);
+        QVERIFY(!area.editor(later)->hidesMarkdownSyntax());
+
+        area.setHideMarkdownSyntax(true);
+        QVERIFY(area.editor(open)->hidesMarkdownSyntax());
+        QVERIFY(area.editor(later)->hidesMarkdownSyntax());
+    }
+
     void zoomsEveryEditorThroughFixedLevels()
     {
         EditorArea area(*m_notebook->store, *m_notebook->writer);

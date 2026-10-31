@@ -6,7 +6,11 @@
 #include "core/BackgroundWriter.h"
 
 #include <QFontMetricsF>
+#include <QGuiApplication>
+#include <QMouseEvent>
 #include <QScrollBar>
+#include <QStyleHints>
+#include <QTextBlock>
 #include <QTimer>
 #include <QWheelEvent>
 
@@ -43,6 +47,7 @@ EditorView::EditorView(PageId id, const QString &body, BackgroundWriter &writer,
     , m_writer(writer)
     , m_autosave(new AutosaveTimer(this))
     , m_highlighter(new MarkdownHighlighter(static_cast<QObject *>(this)))
+    , m_revealTimer(new QTimer(this))
 {
     setFrameShape(QFrame::NoFrame);
     // Paint the margins around the text column like the text area itself.
@@ -56,7 +61,22 @@ EditorView::EditorView(PageId id, const QString &body, BackgroundWriter &writer,
     setPlainText(body);
     document()->setModified(false);
     m_highlighter->setPalette(palette());
+    m_highlighter->setHideSyntax(true);
+    m_highlighter->setRevealedBlock(textCursor().block());
     setMarkdownHighlighting(true);
+    m_revealTimer->setSingleShot(true);
+    m_revealTimer->setInterval(QGuiApplication::styleHints()->mouseDoubleClickInterval());
+    connect(m_revealTimer, &QTimer::timeout, this, [this] {
+        if (!m_mouseSelecting)
+            revealCursorLine();
+    });
+    const auto followCursor = [this] {
+        if (!m_mouseSelecting)
+            revealCursorLine();
+    };
+    connect(this, &QPlainTextEdit::cursorPositionChanged, this, followCursor);
+    // Qt 6.4 moves the cursor without cursorPositionChanged() in selectAll().
+    connect(this, &QPlainTextEdit::selectionChanged, this, followCursor);
 
     connect(document(), &QTextDocument::contentsChanged, m_autosave, &AutosaveTimer::notifyChanged);
     connect(document(), &QTextDocument::modificationChanged, this, &EditorView::saveStateChanged);
@@ -170,6 +190,16 @@ bool EditorView::markdownHighlighting() const
     return m_highlighter->document() != nullptr;
 }
 
+void EditorView::setHideMarkdownSyntax(bool hide)
+{
+    m_highlighter->setHideSyntax(hide);
+}
+
+bool EditorView::hidesMarkdownSyntax() const
+{
+    return m_highlighter->hidesSyntax();
+}
+
 void EditorView::setZoom(int percent)
 {
     if (percent == m_zoom || percent <= 0)
@@ -201,6 +231,33 @@ void EditorView::focusOutEvent(QFocusEvent *event)
     QPlainTextEdit::focusOutEvent(event);
 }
 
+void EditorView::mousePressEvent(QMouseEvent *event)
+{
+    // Revealing the syntax moves the text. While the button is down, that
+    // would move it under the pointer, which then selects text. After a
+    // click, it would move the word a double-click is meant to select. So
+    // the line of a click is revealed once no double-click can follow.
+    if (event->button() == Qt::LeftButton)
+        m_mouseSelecting = true;
+    QPlainTextEdit::mousePressEvent(event);
+}
+
+void EditorView::mouseDoubleClickEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton)
+        m_mouseSelecting = true;
+    QPlainTextEdit::mouseDoubleClickEvent(event);
+}
+
+void EditorView::mouseReleaseEvent(QMouseEvent *event)
+{
+    QPlainTextEdit::mouseReleaseEvent(event);
+    if (event->button() == Qt::LeftButton && m_mouseSelecting) {
+        m_mouseSelecting = false;
+        m_revealTimer->start();
+    }
+}
+
 void EditorView::resizeEvent(QResizeEvent *event)
 {
     // Margins first: the base class wraps the text to the width of the area
@@ -223,6 +280,12 @@ void EditorView::applyPendingScroll()
         return;
     verticalScrollBar()->setValue(m_pendingScroll);
     m_pendingScroll = -1;
+}
+
+void EditorView::revealCursorLine()
+{
+    m_revealTimer->stop();
+    m_highlighter->setRevealedBlock(textCursor().block());
 }
 
 void EditorView::updateMargins()

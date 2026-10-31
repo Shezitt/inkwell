@@ -6,6 +6,8 @@
 
 #include <QPlainTextEdit>
 
+class QTimer;
+
 namespace inkwell {
 
 class AutosaveTimer;
@@ -51,6 +53,10 @@ public:
     /// Styles the Markdown in the text (see MarkdownHighlighter). On by default.
     void setMarkdownHighlighting(bool enabled);
     [[nodiscard]] bool markdownHighlighting() const;
+    /// Hides Markdown syntax such as ** and the URLs of links, except on the
+    /// line with the cursor, while highlighting is on. On by default.
+    void setHideMarkdownSyntax(bool hide);
+    [[nodiscard]] bool hidesMarkdownSyntax() const;
 
     /// Shows the text at @p percent of its normal size. The text column widens
     /// along, so lines keep about the same number of words.
@@ -66,6 +72,9 @@ signals:
 protected:
     void changeEvent(QEvent *event) override;
     void focusOutEvent(QFocusEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void showEvent(QShowEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
@@ -74,17 +83,20 @@ private:
     void updateMargins();
     void updateTabStops();
     void applyPendingScroll();
+    void revealCursorLine();
 
     PageId m_pageId;
     BackgroundWriter &m_writer;
     AutosaveTimer *m_autosave;
     MarkdownHighlighter *m_highlighter;
+    QTimer *m_revealTimer; ///< reveals the line of a click, if no double-click follows
     quint64 m_queuedTicket = 0; ///< ticket of the last save handed to the writer
     quint64 m_durableTicket = 0; ///< newest ticket the writer reported durable
     int m_pendingScroll = -1; ///< scroll position to apply once laid out
     QFont m_baseFont; ///< the font at 100%
     int m_zoom = 100;
     int m_wheelDelta = 0; ///< Ctrl+wheel movement not yet turned into zoom steps
+    bool m_mouseSelecting = false; ///< the left button is down in the text
 };
 
 } // namespace inkwell

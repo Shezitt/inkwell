@@ -191,6 +191,102 @@ private slots:
         QVERIFY(!editor.hasUnsavedChanges());
     }
 
+    void editorRevealsTheLineWithTheCursor()
+    {
+        EditorView editor(m_notebook->newPage(), u"**one**\n**two**"_s, *m_notebook->writer);
+        editor.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&editor));
+        QVERIFY(editor.hidesMarkdownSyntax());
+        const QTextDocument &document = *editor.document();
+        const auto shows
+            = [&document](int line) { return xAt(document, line, 2) > xAt(document, line, 0); };
+        QTRY_VERIFY(isHighlighted(document));
+        QVERIFY(shows(0)); // the cursor starts on the first line
+        QVERIFY(!shows(1));
+
+        QTest::keyClick(&editor, Qt::Key_Down);
+        QVERIFY(!shows(0));
+        QVERIFY(shows(1));
+
+        // A new line gets the cursor, and with it the syntax.
+        QTest::keyClick(&editor, Qt::Key_End);
+        QTest::keyClick(&editor, Qt::Key_Return);
+        QTest::keyClicks(&editor, u"**three**"_s);
+        QVERIFY(!shows(1));
+        QVERIFY(shows(2));
+
+        QTest::keyClick(&editor, Qt::Key_Home, Qt::ControlModifier);
+        QVERIFY(shows(0));
+        QVERIFY(!shows(2));
+
+        editor.selectAll(); // moves the cursor to the end
+        QVERIFY(!shows(0));
+        QVERIFY(shows(2));
+
+        editor.setHideMarkdownSyntax(false);
+        QVERIFY(!editor.hidesMarkdownSyntax());
+        QVERIFY(shows(0) && shows(1) && shows(2));
+        QCOMPARE(editor.toPlainText(), u"**one**\n**two**\n**three**"_s);
+    }
+
+    void editorRevealsAClickedLineOnceNoDoubleClickFollows()
+    {
+        const QString text = u"start\n**a** *b* ~~c~~ word"_s;
+        EditorView editor(m_notebook->newPage(), text, *m_notebook->writer);
+        editor.resize(600, 200);
+        editor.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&editor));
+        const QTextDocument &document = *editor.document();
+        QTRY_VERIFY(isHighlighted(document));
+        const auto shows = [&document] { return xAt(document, 1, 2) > xAt(document, 1, 0); };
+        QVERIFY(!shows());
+
+        // Where "word" is drawn while its line hides the syntax before it.
+        QTextCursor word(editor.document());
+        word.setPosition(int(text.indexOf(u"word"_s)) + 1);
+        const QPoint point = editor.cursorRect(word).center();
+
+        // Revealing moves the text, so a double-click still finds its word.
+        // A mouse sends press, release, double-click, release; QTest's
+        // mouseDClick() only the double-click.
+        QTest::mousePress(editor.viewport(), Qt::LeftButton, {}, point);
+        QTest::mouseRelease(editor.viewport(), Qt::LeftButton, {}, point);
+        QTest::mouseDClick(editor.viewport(), Qt::LeftButton, {}, point);
+        QTest::mouseRelease(editor.viewport(), Qt::LeftButton, {}, point);
+        QCOMPARE(editor.textCursor().selectedText(), u"word"_s);
+        QTRY_VERIFY(shows());
+
+        // A single click reveals the line a moment later, without selecting.
+        QTest::keyClick(&editor, Qt::Key_Home, Qt::ControlModifier);
+        QVERIFY(!shows());
+        QTest::mouseClick(editor.viewport(), Qt::LeftButton, {}, point);
+        QVERIFY(!shows());
+        QTRY_VERIFY(shows());
+        QVERIFY(!editor.textCursor().hasSelection());
+    }
+
+    void selectedHiddenSyntaxDrawsNothing()
+    {
+        // A selection draws text in its own colour, so hidden syntax must be
+        // invisible by itself: selected, a heading made bold with hidden **
+        // looks exactly like the heading without them, bold anyway.
+        EditorView editor(
+            m_notebook->newPage(), u"# **Title**\n# Title\nend"_s, *m_notebook->writer);
+        editor.resize(500, 300);
+        editor.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&editor));
+        QTRY_VERIFY(isHighlighted(*editor.document()));
+        editor.selectAll(); // the cursor goes to the end, the line that shows its syntax
+
+        const auto line = [&editor](int number) {
+            const QRect cursor
+                = editor.cursorRect(QTextCursor(editor.document()->findBlockByNumber(number)));
+            const QRect rect(0, cursor.top(), editor.viewport()->width(), cursor.height());
+            return editor.viewport()->grab(rect).toImage();
+        };
+        QCOMPARE(line(0), line(1));
+    }
+
     void headingsGrowWithTheZoom()
     {
         EditorView editor(m_notebook->newPage(), u"# Title\ntext"_s, *m_notebook->writer);

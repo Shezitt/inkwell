@@ -41,7 +41,7 @@ private:
 
     QPalette m_palette;
     qreal m_basePointSize = 0;
-    std::array<QTextCharFormat, size_t(markdown::Style::Rule) + 1> m_formats;
+    std::array<QTextCharFormat, size_t(markdown::Style::Hideable) + 1> m_formats;
 };
 
 } // namespace inkwell

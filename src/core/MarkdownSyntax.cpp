@@ -70,6 +70,8 @@ void highlightInline(QStringView line, qsizetype from, qsizetype to, QList<Span>
         add(spans, m.capturedStart(1), m.capturedLength(1), Style::Marker);
         add(spans, m.capturedStart(2), m.capturedLength(2), Style::Code);
         add(spans, m.capturedEnd(2), m.capturedLength(1), Style::Marker);
+        add(spans, m.capturedStart(1), m.capturedLength(1), Style::Hideable);
+        add(spans, m.capturedEnd(2), m.capturedLength(1), Style::Hideable);
         mask(text, m.capturedStart(), m.capturedLength());
     }
     for (auto it = p.link.globalMatch(text, from); it.hasNext();) {
@@ -79,6 +81,9 @@ void highlightInline(QStringView line, qsizetype from, qsizetype to, QList<Span>
         add(spans, m.capturedStart(3), 2, Style::Marker);
         add(spans, m.capturedStart(4), m.capturedLength(4), Style::Url);
         add(spans, m.capturedStart(5), 1, Style::Marker);
+        // Everything but the text, including a title, which has no style of its own.
+        add(spans, m.capturedStart(1), 1, Style::Hideable);
+        add(spans, m.capturedStart(3), m.capturedEnd() - m.capturedStart(3), Style::Hideable);
         mask(text, m.capturedStart(3), m.capturedEnd() - m.capturedStart(3));
     }
     for (auto it = p.url.globalMatch(text, from); it.hasNext();) {
@@ -92,6 +97,8 @@ void highlightInline(QStringView line, qsizetype from, qsizetype to, QList<Span>
             add(spans, m.capturedStart(1), m.capturedLength(1), Style::Marker);
             add(spans, m.capturedStart(2), m.capturedLength(2), style);
             add(spans, m.capturedStart(3), m.capturedLength(3), Style::Marker);
+            add(spans, m.capturedStart(1), m.capturedLength(1), Style::Hideable);
+            add(spans, m.capturedStart(3), m.capturedLength(3), Style::Hideable);
         }
     };
     emphasis(p.strike, Style::Strikethrough);
@@ -102,6 +109,8 @@ void highlightInline(QStringView line, qsizetype from, qsizetype to, QList<Span>
         add(spans, m.capturedStart(2), m.capturedLength(2), Style::Bold);
         add(spans, m.capturedStart(2), m.capturedLength(2), Style::Italic);
         add(spans, m.capturedStart(3), 3, Style::Marker);
+        add(spans, m.capturedStart(1), 3, Style::Hideable);
+        add(spans, m.capturedStart(3), 3, Style::Hideable);
         mask(text, m.capturedStart(1), 3);
         mask(text, m.capturedStart(3), 3);
     }
@@ -150,6 +159,11 @@ LineState highlightLine(QStringView line, LineState previous, QList<Span> &spans
         if (m.capturedLength(2) > 0) {
             if (m.capturedEnd(2) < length)
                 add(spans, m.capturedEnd(2), length - m.capturedEnd(2), Style::Marker);
+            // The #s with the space after them, and any closing #s. A heading
+            // without text keeps its #s, or nothing would be left of it.
+            add(spans, m.capturedStart(1), m.capturedStart(2) - m.capturedStart(1),
+                Style::Hideable);
+            add(spans, m.capturedEnd(2), length - m.capturedEnd(2), Style::Hideable);
             highlightInline(line, m.capturedStart(2), m.capturedEnd(2), spans);
         }
         return LineState::Normal;

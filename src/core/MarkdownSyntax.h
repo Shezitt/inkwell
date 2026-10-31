@@ -24,6 +24,10 @@ enum class Style {
     LinkText,
     Url,
     Rule, ///< a horizontal rule, ---
+    /// Syntax that can be hidden while the line is not being edited, so that
+    /// only its effect shows: heading #s, emphasis and code markers, and all
+    /// of a link but its text. Overlaps the spans above.
+    Hideable,
 };
 
 struct Span
@@ -46,6 +50,9 @@ enum class LineState { Normal = 0, InBacktickFence = 1, InTildeFence = 2 };
 /// Covers what is common in notes: ATX headings, emphasis, strikethrough,
 /// inline code, fenced code blocks, quotes, lists and task lists, links,
 /// bare URLs and horizontal rules.
+///
+/// Style::Hideable spans come in addition to the others, which describe the
+/// line as it is when its syntax shows.
 [[nodiscard]] LineState highlightLine(QStringView line, LineState previous, QList<Span> &spans);
 
 } // namespace inkwell::markdown

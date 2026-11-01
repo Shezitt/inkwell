@@ -75,6 +75,7 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void showEvent(QShowEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
@@ -84,6 +85,7 @@ private:
     void updateTabStops();
     void applyPendingScroll();
     void revealCursorLine();
+    void paintSymbols(const QRect &area);
 
     PageId m_pageId;
     BackgroundWriter &m_writer;

@@ -38,6 +38,17 @@ qreal xAt(const QTextDocument &document, int line, int position)
     return block.layout()->lineForTextPosition(position).cursorToX(position);
 }
 
+/// How many pixels of @p image within @p rect satisfy @p test.
+int countPixels(const QImage &image, const QRect &rect, auto test)
+{
+    int count = 0;
+    for (int y = rect.top(); y <= rect.bottom(); ++y) {
+        for (int x = rect.left(); x <= rect.right(); ++x)
+            count += test(image.pixelColor(x, y)) ? 1 : 0;
+    }
+    return count;
+}
+
 bool isHighlighted(const QTextDocument &document)
 {
     for (QTextBlock block = document.begin(); block.isValid(); block = block.next()) {
@@ -143,6 +154,78 @@ private slots:
         // Turned off, all syntax shows.
         highlighter.setHideSyntax(false);
         QVERIFY(xAt(document, 2, 7) > xAt(document, 2, 5));
+    }
+
+    void symbolsTakeThePlaceOfTheirSyntax()
+    {
+        const QString text = u"- item\n"
+                             u"- [ ] open\n"
+                             u"- [x] done\n"
+                             u"> > quote\n"
+                             u">\n"
+                             u"---\n"
+                             u"plain"_s;
+        QTextDocument document(text);
+        MarkdownHighlighter highlighter(&document);
+        highlighter.setRevealedBlock(document.findBlockByNumber(6));
+        const auto revealedX = [&](int line, int position) {
+            highlighter.setRevealedBlock(document.findBlockByNumber(line));
+            const qreal x = xAt(document, line, position);
+            highlighter.setRevealedBlock(document.findBlockByNumber(6));
+            return x;
+        };
+        const auto symbols = [&](int line) {
+            QStringList parts;
+            const QTextBlock block = document.findBlockByNumber(line);
+            for (const markdown::Span &symbol : highlighter.symbols(block))
+                parts.append(block.text().mid(symbol.start, symbol.length));
+            return parts;
+        };
+        QVERIFY(symbols(0).isEmpty()); // only while hidden
+        highlighter.setHideSyntax(true);
+
+        QCOMPARE(symbols(0), QStringList {u"-"_s});
+        QCOMPARE(symbols(1), QStringList {u"[ ]"_s});
+        QCOMPARE(highlighter.symbols(document.findBlockByNumber(2)).constFirst().style,
+            markdown::Style::CheckedBoxSymbol);
+        QCOMPARE(symbols(3), (QStringList {u">"_s, u">"_s}));
+        QCOMPARE(symbols(5), QStringList {u"---"_s});
+        QVERIFY(symbols(6).isEmpty());
+
+        // A bullet keeps its place, so the text does not move when it shows.
+        QCOMPARE(xAt(document, 0, 2), revealedX(0, 2));
+        QVERIFY(xAt(document, 0, 1) > xAt(document, 0, 0));
+        // A checkbox stands for the bullet too, and is as wide checked as not.
+        QCOMPARE(xAt(document, 1, 2), xAt(document, 1, 0));
+        QVERIFY(xAt(document, 1, 6) < revealedX(1, 6));
+        QCOMPARE(xAt(document, 1, 5) - xAt(document, 1, 2), revealedX(1, 5) - revealedX(1, 2));
+        QCOMPARE(xAt(document, 2, 6), xAt(document, 1, 6));
+        // Quote bars go beside the text.
+        QCOMPARE(xAt(document, 3, 4), xAt(document, 3, 0));
+
+        // Lines keep their height, even with nothing left on them.
+        const auto height = [&document](int line) {
+            const QTextBlock block = document.findBlockByNumber(line);
+            std::ignore = document.documentLayout()->blockBoundingRect(block);
+            return block.layout()->boundingRect().height();
+        };
+        for (int line = 0; line < 6; ++line)
+            QCOMPARE(height(line), height(6));
+        QCOMPARE(xAt(document, 5, 3), xAt(document, 5, 0) + revealedX(5, 3) - revealedX(5, 0));
+
+        // A revealed block shows its syntax, not symbols.
+        highlighter.setRevealedBlock(document.findBlockByNumber(0));
+        QVERIFY(symbols(0).isEmpty());
+        QCOMPARE(symbols(1), QStringList {u"[ ]"_s});
+
+        highlighter.setHideSyntax(false);
+        QVERIFY(symbols(1).isEmpty());
+        highlighter.setHideSyntax(true);
+        QCOMPARE(symbols(1), QStringList {u"[ ]"_s});
+        // Not even blocks of a document the highlighter left.
+        highlighter.setDocument(nullptr);
+        QVERIFY(symbols(1).isEmpty());
+        QCOMPARE(document.toPlainText(), text);
     }
 
     void takesColoursFromThePalette()
@@ -285,6 +368,71 @@ private slots:
             return editor.viewport()->grab(rect).toImage();
         };
         QCOMPARE(line(0), line(1));
+    }
+
+    void editorDrawsSymbols()
+    {
+        const QString text = u"start\n"
+                             u"- item\n"
+                             u"- [ ] open\n"
+                             u"- [x] done\n"
+                             u"> a quote long enough to wrap onto a second line\n"
+                             u"---\n"
+                             u"end"_s;
+        EditorView editor(m_notebook->newPage(), text, *m_notebook->writer);
+        // Bullets and checkboxes take the link colour; bars and rules the
+        // text colour, dimmed, which is grey here.
+        QPalette palette = editor.palette();
+        palette.setColor(QPalette::Base, Qt::white);
+        palette.setColor(QPalette::Text, Qt::black);
+        palette.setColor(QPalette::Link, Qt::red);
+        editor.setPalette(palette);
+        editor.resize(300, 400);
+        editor.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&editor));
+        QTRY_VERIFY(isHighlighted(*editor.document()));
+
+        const auto at = [&editor](int line, int position) {
+            QTextCursor cursor(editor.document()->findBlockByNumber(line));
+            cursor.setPosition(cursor.position() + position);
+            return editor.cursorRect(cursor);
+        };
+        const auto red = [](const QColor &c) { return c.red() - c.green() > 100; };
+        const auto grey = [](const QColor &c) {
+            return c.red() == c.green() && c.green() == c.blue() && c.red() > 60 && c.red() < 230;
+        };
+        const auto cell = [&at](int line, int from, int to) {
+            return QRect(QPoint(at(line, from).left(), at(line, from).top()),
+                QPoint(at(line, to).left() - 1, at(line, from).bottom()));
+        };
+        const int quoteEnd = editor.document()->findBlockByNumber(4).length() - 1;
+        const QRect quote(
+            QPoint(0, at(4, 0).top()), QPoint(at(4, 2).left() - 1, at(4, quoteEnd).bottom()));
+        QVERIFY(at(4, quoteEnd).top() > at(4, 0).top()); // it wraps
+        const auto ruleRow = [&](const QImage &image) {
+            int longest = 0;
+            for (int y = at(5, 0).top(); y <= at(5, 0).bottom(); ++y) {
+                longest
+                    = std::max(longest, countPixels(image, QRect(0, y, image.width(), 1), grey));
+            }
+            return longest;
+        };
+
+        QImage image = editor.viewport()->grab().toImage();
+        QCOMPARE(countPixels(image, cell(0, 0, 5), red), 0);
+        QVERIFY(countPixels(image, cell(1, 0, 1), red) > 0); // a bullet
+        const int open = countPixels(image, cell(2, 2, 5), red);
+        QVERIFY(open > 0);
+        QVERIFY(countPixels(image, cell(3, 2, 5), red) > open * 3 / 2); // filled
+        // A bar left of the quote, along both of its lines.
+        for (int y = quote.top(); y <= quote.bottom(); ++y)
+            QVERIFY(countPixels(image, QRect(0, y, quote.width(), 1), grey) > 0);
+        QVERIFY(ruleRow(image) > editor.viewport()->width() * 3 / 4);
+
+        editor.setHideMarkdownSyntax(false);
+        image = editor.viewport()->grab().toImage();
+        QCOMPARE(countPixels(image, quote, grey), 0);
+        QVERIFY(ruleRow(image) < editor.viewport()->width() / 4);
     }
 
     void headingsGrowWithTheZoom()

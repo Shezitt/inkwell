@@ -5,7 +5,9 @@
 
 #include <QAbstractTextDocumentLayout>
 #include <QFontDatabase>
+#include <QGuiApplication>
 #include <QSignalSpy>
+#include <QStyleHints>
 #include <QTest>
 #include <QTextBlock>
 #include <QTextDocument>
@@ -433,6 +435,72 @@ private slots:
         image = editor.viewport()->grab().toImage();
         QCOMPARE(countPixels(image, quote, grey), 0);
         QVERIFY(ruleRow(image) < editor.viewport()->width() / 4);
+    }
+
+    void editorTogglesATaskWhenItsCheckboxIsClicked()
+    {
+        EditorView editor(
+            m_notebook->newPage(), u"start\n- [ ] open\n* [X] done"_s, *m_notebook->writer);
+        editor.resize(400, 300);
+        editor.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&editor));
+        QTRY_VERIFY(isHighlighted(*editor.document()));
+        const auto checkbox = [&editor](int line) {
+            QTextCursor cursor(editor.document()->findBlockByNumber(line));
+            const QRect left = editor.cursorRect(cursor);
+            cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::MoveAnchor, 5);
+            return QPoint((left.left() + editor.cursorRect(cursor).left()) / 2, left.center().y());
+        };
+        const auto line
+            = [&editor](int number) { return editor.document()->findBlockByNumber(number).text(); };
+
+        QTest::mouseClick(editor.viewport(), Qt::LeftButton, {}, checkbox(1));
+        QCOMPARE(line(1), u"- [x] open"_s);
+        QTest::mouseClick(editor.viewport(), Qt::LeftButton, {}, checkbox(2));
+        QCOMPARE(line(2), u"* [ ] done"_s);
+        // The cursor stays, and with it the line that shows its syntax.
+        QCOMPARE(editor.textCursor().position(), 0);
+        QVERIFY(!editor.textCursor().hasSelection());
+        QTest::qWait(QGuiApplication::styleHints()->mouseDoubleClickInterval() + 50);
+        QCOMPARE(editor.textCursor().position(), 0);
+
+        // Each click toggles, as part of a double-click too.
+        const QPoint open = checkbox(1);
+        QTest::mousePress(editor.viewport(), Qt::LeftButton, {}, open);
+        QTest::mouseRelease(editor.viewport(), Qt::LeftButton, {}, open);
+        QTest::mouseDClick(editor.viewport(), Qt::LeftButton, {}, open);
+        QTest::mouseRelease(editor.viewport(), Qt::LeftButton, {}, open);
+        QCOMPARE(line(1), u"- [x] open"_s);
+        QVERIFY(!editor.textCursor().hasSelection());
+
+        // Dragging from a checkbox does not select.
+        QTest::mousePress(editor.viewport(), Qt::LeftButton, {}, open);
+        QMouseEvent move(QEvent::MouseMove, checkbox(2) + QPoint(80, 0),
+            editor.viewport()->mapToGlobal(checkbox(2) + QPoint(80, 0)), Qt::NoButton,
+            Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(editor.viewport(), &move);
+        QTest::mouseRelease(editor.viewport(), Qt::LeftButton, {}, checkbox(2));
+        QCOMPARE(line(1), u"- [ ] open"_s);
+        QVERIFY(!editor.textCursor().hasSelection());
+
+        // Each toggle is an edit, which is saved and can be undone.
+        QVERIFY(editor.hasUnsavedChanges());
+        editor.undo();
+        QCOMPARE(line(1), u"- [x] open"_s);
+
+        // The pointer shows where a click toggles.
+        QTest::mouseMove(editor.viewport(), checkbox(2));
+        QTRY_COMPARE(editor.viewport()->cursor().shape(), Qt::PointingHandCursor);
+        QTest::mouseMove(editor.viewport(), checkbox(2) + QPoint(80, 0));
+        QTRY_COMPARE(editor.viewport()->cursor().shape(), Qt::IBeamCursor);
+
+        // On the line being edited, the brackets are text like any other.
+        QTest::keyClick(&editor, Qt::Key_Home, Qt::ControlModifier);
+        QTest::keyClick(&editor, Qt::Key_Down);
+        const QPoint revealed = checkbox(1);
+        QTest::mouseClick(editor.viewport(), Qt::LeftButton, {}, revealed);
+        QCOMPARE(line(1), u"- [x] open"_s);
+        QCOMPARE(editor.textCursor().block().blockNumber(), 1);
     }
 
     void headingsGrowWithTheZoom()

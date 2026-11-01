@@ -20,6 +20,8 @@
 #include <algorithm>
 #include <cmath>
 
+using namespace Qt::StringLiterals;
+
 namespace inkwell {
 
 namespace {
@@ -88,6 +90,7 @@ EditorView::EditorView(PageId id, const QString &body, BackgroundWriter &writer,
     setBackgroundRole(QPalette::Base);
     setAutoFillBackground(true);
     setLineWrapMode(QPlainTextEdit::WidgetWidth);
+    viewport()->setMouseTracking(true); // to show where a task can be clicked
     m_baseFont = font();
     updateTabStops();
     document()->setDocumentMargin(12);
@@ -267,6 +270,11 @@ void EditorView::focusOutEvent(QFocusEvent *event)
 
 void EditorView::mousePressEvent(QMouseEvent *event)
 {
+    // A click on a checkbox toggles its task, and leaves the cursor where it
+    // is. Without the press, the base class neither selects on a drag nor
+    // moves the cursor on the release.
+    if (event->button() == Qt::LeftButton && toggleTaskAt(event->position().toPoint()))
+        return;
     // Revealing the syntax moves the text. While the button is down, that
     // would move it under the pointer, which then selects text. After a
     // click, it would move the word a double-click is meant to select. So
@@ -278,9 +286,24 @@ void EditorView::mousePressEvent(QMouseEvent *event)
 
 void EditorView::mouseDoubleClickEvent(QMouseEvent *event)
 {
+    // The second click of a double-click toggles the task again, as with
+    // any checkbox.
+    if (event->button() == Qt::LeftButton && toggleTaskAt(event->position().toPoint()))
+        return;
     if (event->button() == Qt::LeftButton)
         m_mouseSelecting = true;
     QPlainTextEdit::mouseDoubleClickEvent(event);
+}
+
+void EditorView::mouseMoveEvent(QMouseEvent *event)
+{
+    QPlainTextEdit::mouseMoveEvent(event);
+    if (event->buttons() == Qt::NoButton) {
+        const bool onTask = !taskMarkAt(event->position().toPoint()).isNull();
+        const Qt::CursorShape shape = onTask ? Qt::PointingHandCursor : Qt::IBeamCursor;
+        if (viewport()->cursor().shape() != shape)
+            viewport()->setCursor(shape);
+    }
 }
 
 void EditorView::mouseReleaseEvent(QMouseEvent *event)
@@ -413,6 +436,35 @@ void EditorView::paintSymbols(const QRect &area)
             }
         }
     }
+}
+
+QTextCursor EditorView::taskMarkAt(const QPoint &point) const
+{
+    const QTextBlock block = cursorForPosition(point).block();
+    const QPointF origin = blockBoundingGeometry(block).translated(contentOffset()).topLeft();
+    for (const markdown::Span &symbol : m_highlighter->symbols(block)) {
+        if (symbol.style != markdown::Style::CheckboxSymbol
+            && symbol.style != markdown::Style::CheckedBoxSymbol)
+            continue;
+        if (symbolGeometry(block, symbol).cell.translated(origin).contains(point)) {
+            // Between the brackets: a space, or an x when done.
+            QTextCursor mark(block);
+            mark.setPosition(block.position() + int(symbol.start) + 1);
+            mark.setPosition(mark.position() + 1, QTextCursor::KeepAnchor);
+            return mark;
+        }
+    }
+    return {};
+}
+
+bool EditorView::toggleTaskAt(const QPoint &point)
+{
+    QTextCursor mark = taskMarkAt(point);
+    if (mark.isNull())
+        return false;
+    // An edit like any other: it can be undone, and is saved.
+    mark.insertText(mark.selectedText() == u" "_s ? u"x"_s : u" "_s);
+    return true;
 }
 
 void EditorView::updateMargins()

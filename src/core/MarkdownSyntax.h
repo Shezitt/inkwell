@@ -25,9 +25,18 @@ enum class Style {
     Url,
     Rule, ///< a horizontal rule, ---
     /// Syntax that can be hidden while the line is not being edited, so that
-    /// only its effect shows: heading #s, emphasis and code markers, and all
-    /// of a link but its text. Overlaps the spans above.
+    /// only its effect shows: heading #s, emphasis and code markers, all of a
+    /// link but its text, the bullet of a task and the spaces of a quote's
+    /// >s. Overlaps the spans above.
     Hideable,
+    // Syntax that, while hidden, is drawn as a symbol. These overlap the
+    // spans above too, and keep their width for the symbol, but for quote
+    // bars, which are drawn beside the text.
+    BulletSymbol, ///< the -, * or + of a list item, drawn as a bullet
+    CheckboxSymbol, ///< the [ ] of an open task, drawn as a checkbox
+    CheckedBoxSymbol, ///< the [x] of a done task, drawn as a checked checkbox
+    QuoteBarSymbol, ///< each > of a quote, drawn as a bar along the line
+    RuleSymbol, ///< a horizontal rule, the whole line, drawn as a line across
 };
 
 struct Span
@@ -51,8 +60,8 @@ enum class LineState { Normal = 0, InBacktickFence = 1, InTildeFence = 2 };
 /// inline code, fenced code blocks, quotes, lists and task lists, links,
 /// bare URLs and horizontal rules.
 ///
-/// Style::Hideable spans come in addition to the others, which describe the
-/// line as it is when its syntax shows.
+/// Style::Hideable and symbol spans come in addition to the others, which
+/// describe the line as it is when its syntax shows.
 [[nodiscard]] LineState highlightLine(QStringView line, LineState previous, QList<Span> &spans);
 
 } // namespace inkwell::markdown

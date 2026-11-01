@@ -97,8 +97,8 @@ void MarkdownHighlighter::highlightBlock(const QString &text)
 
     // Spans nest (bold inside a heading): merge each into what is already there.
     for (const markdown::Span &span : std::as_const(spans)) {
-        if (span.style == Style::Hideable)
-            continue;
+        if (span.style >= Style::Hideable)
+            continue; // not a look of its own
         const QTextCharFormat &style = m_formats.at(size_t(span.style));
         const auto end = int(span.start + span.length);
         for (auto run = int(span.start); run < end;) {

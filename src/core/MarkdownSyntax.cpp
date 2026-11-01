@@ -171,6 +171,7 @@ LineState highlightLine(QStringView line, LineState previous, QList<Span> &spans
 
     if (p.rule.match(text).hasMatch()) {
         add(spans, 0, length, Style::Rule);
+        add(spans, 0, length, Style::RuleSymbol);
         return LineState::Normal;
     }
 
@@ -178,19 +179,36 @@ LineState highlightLine(QStringView line, LineState previous, QList<Span> &spans
     bool quoted = false;
     if (const auto m = p.quote.match(text); m.hasMatch()) {
         add(spans, 0, m.capturedEnd(), Style::Marker);
+        // Bars are drawn beside the text, so the spaces around them go too.
+        for (qsizetype i = 0, spaces = 0; i <= m.capturedEnd(); ++i) {
+            if (i < m.capturedEnd() && text[i] != u'>')
+                continue;
+            add(spans, spaces, i - spaces, Style::Hideable);
+            if (i < m.capturedEnd())
+                add(spans, i, 1, Style::QuoteBarSymbol);
+            spaces = i + 1;
+        }
         contentStart = m.capturedEnd();
         quoted = true;
     }
 
     if (const auto m = p.listItem.match(text.sliced(contentStart)); m.hasMatch()) {
-        add(spans, contentStart + m.capturedStart(1), m.capturedLength(1), Style::ListMarker);
+        const qsizetype marker = contentStart + m.capturedStart(1);
+        const bool bullet = m.capturedLength(1) == 1; // not a number
+        add(spans, marker, m.capturedLength(1), Style::ListMarker);
         contentStart += m.capturedEnd();
         if (const auto task = p.task.match(text.sliced(contentStart)); task.hasMatch()) {
             add(spans, contentStart, 3, Style::Marker);
             const bool done = task.captured(1) != u" "_s;
+            // The checkbox stands for the bullet, which goes with the space after it.
+            if (bullet)
+                add(spans, marker, contentStart - marker, Style::Hideable);
+            add(spans, contentStart, 3, done ? Style::CheckedBoxSymbol : Style::CheckboxSymbol);
             contentStart += task.capturedEnd();
             if (done)
                 add(spans, contentStart, length - contentStart, Style::TaskDone);
+        } else if (bullet) {
+            add(spans, marker, 1, Style::BulletSymbol);
         }
     }
 

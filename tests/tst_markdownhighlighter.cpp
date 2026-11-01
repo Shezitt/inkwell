@@ -119,7 +119,7 @@ private slots:
         QCOMPARE(xAt(document, 1, 24), xAt(document, 1, 23));
         QCOMPARE(xAt(document, 2, 1), xAt(document, 2, 0));
         QCOMPARE(xAt(document, 2, int(bang)), xAt(document, 2, 5));
-        QVERIFY(xAt(document, 3, 2) > xAt(document, 3, 0)); // lists stay as they are
+        QCOMPARE(xAt(document, 3, 2), xAt(document, 3, 0)); // a checkbox stands for the bullet
         // Only the look changes.
         QCOMPARE(document.toPlainText(), text);
         QVERIFY(!document.isModified());

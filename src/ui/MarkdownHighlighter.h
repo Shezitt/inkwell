@@ -59,7 +59,7 @@ private:
     qreal m_basePointSize = 0;
     bool m_hideSyntax = false;
     QTextCursor m_revealed; ///< a cursor follows its block through edits elsewhere
-    std::array<QTextCharFormat, size_t(markdown::Style::Hideable) + 1> m_formats;
+    std::array<QTextCharFormat, size_t(markdown::Style::Hideable)> m_formats;
 };
 
 } // namespace inkwell

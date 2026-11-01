@@ -4,6 +4,9 @@
 #include <QRegularExpression>
 #include <QString>
 
+#include <algorithm>
+#include <tuple>
+
 using namespace Qt::StringLiterals;
 
 namespace inkwell::markdown {
@@ -53,8 +56,10 @@ void mask(QString &text, qsizetype start, qsizetype length)
         text[i] = kMasked;
 }
 
-/// Emphasis, code, links and URLs within line[from, to).
-void highlightInline(QStringView line, qsizetype from, qsizetype to, QList<Span> &spans)
+/// Emphasis, code, links and URLs within line[from, to). Adds the links to
+/// @p links too, if given.
+void highlightInline(
+    QStringView line, qsizetype from, qsizetype to, QList<Span> &spans, QList<Link> *links)
 {
     const Patterns &p = patterns();
     // Work on a copy in which parsed code and URLs are masked, so that
@@ -85,11 +90,15 @@ void highlightInline(QStringView line, qsizetype from, qsizetype to, QList<Span>
         add(spans, m.capturedStart(1), 1, Style::Hideable);
         add(spans, m.capturedStart(3), m.capturedEnd() - m.capturedStart(3), Style::Hideable);
         mask(text, m.capturedStart(3), m.capturedEnd() - m.capturedStart(3));
+        if (links)
+            links->append({m.capturedStart(), m.capturedLength(), m.captured(4)});
     }
     for (auto it = p.url.globalMatch(text, from); it.hasNext();) {
         const auto m = it.next();
         add(spans, m.capturedStart(), m.capturedLength(), Style::Url);
         mask(text, m.capturedStart(), m.capturedLength());
+        if (links)
+            links->append({m.capturedStart(), m.capturedLength(), m.captured()});
     }
     const auto emphasis = [&](const QRegularExpression &re, Style style) {
         for (auto it = re.globalMatch(text, from); it.hasNext();) {
@@ -119,9 +128,7 @@ void highlightInline(QStringView line, qsizetype from, qsizetype to, QList<Span>
     emphasis(p.italicUnderscore, Style::Italic);
 }
 
-} // namespace
-
-LineState highlightLine(QStringView line, LineState previous, QList<Span> &spans)
+LineState parseLine(QStringView line, LineState previous, QList<Span> &spans, QList<Link> *links)
 {
     const Patterns &p = patterns();
     const QString text = line.toString();
@@ -164,7 +171,7 @@ LineState highlightLine(QStringView line, LineState previous, QList<Span> &spans
             add(spans, m.capturedStart(1), m.capturedStart(2) - m.capturedStart(1),
                 Style::Hideable);
             add(spans, m.capturedEnd(2), length - m.capturedEnd(2), Style::Hideable);
-            highlightInline(line, m.capturedStart(2), m.capturedEnd(2), spans);
+            highlightInline(line, m.capturedStart(2), m.capturedEnd(2), spans, links);
         }
         return LineState::Normal;
     }
@@ -214,8 +221,43 @@ LineState highlightLine(QStringView line, LineState previous, QList<Span> &spans
 
     if (quoted)
         add(spans, contentStart, length - contentStart, Style::Quote);
-    highlightInline(line, contentStart, length, spans);
+    highlightInline(line, contentStart, length, spans, links);
     return LineState::Normal;
+}
+
+} // namespace
+
+LineState highlightLine(QStringView line, LineState previous, QList<Span> &spans)
+{
+    return parseLine(line, previous, spans, nullptr);
+}
+
+QList<Link> findLinks(QStringView line, LineState previous)
+{
+    QList<Span> spans;
+    QList<Link> links;
+    std::ignore = parseLine(line, previous, spans, &links);
+    // Bare URLs are found after links, but may come before them in the line.
+    std::sort(
+        links.begin(), links.end(), [](const Link &a, const Link &b) { return a.start < b.start; });
+    return links;
+}
+
+QUrl linkUrl(QStringView target)
+{
+    const QString trimmed = target.trimmed().toString();
+    const QUrl url(
+        trimmed.startsWith(u"www."_s, Qt::CaseInsensitive) ? u"https://"_s + trimmed : trimmed);
+    if (!url.isValid())
+        return {};
+    // Only what a browser or a mail client opens. Other schemes, such as
+    // file:, could start a program on the user's computer.
+    const QString scheme = url.scheme();
+    if (scheme == u"mailto"_s)
+        return url.path().isEmpty() ? QUrl() : url;
+    if (scheme == u"http"_s || scheme == u"https"_s || scheme == u"ftp"_s)
+        return url.host().isEmpty() ? QUrl() : url;
+    return {};
 }
 
 } // namespace inkwell::markdown

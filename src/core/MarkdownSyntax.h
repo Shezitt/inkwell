@@ -2,7 +2,9 @@
 #pragma once
 
 #include <QList>
+#include <QString>
 #include <QStringView>
+#include <QUrl>
 
 namespace inkwell::markdown {
 
@@ -48,6 +50,17 @@ struct Span
     friend bool operator==(const Span &, const Span &) = default;
 };
 
+/// A link in a line of text: a [text](target) from its [ to its ), or a
+/// bare URL.
+struct Link
+{
+    qsizetype start = 0;
+    qsizetype length = 0;
+    QString target; ///< as written, such as https://example.com
+
+    friend bool operator==(const Link &, const Link &) = default;
+};
+
 /// State carried from one line to the next: whether it is inside a fenced
 /// code block, and which fence closes it.
 enum class LineState { Normal = 0, InBacktickFence = 1, InTildeFence = 2 };
@@ -63,5 +76,14 @@ enum class LineState { Normal = 0, InBacktickFence = 1, InTildeFence = 2 };
 /// Style::Hideable and symbol spans come in addition to the others, which
 /// describe the line as it is when its syntax shows.
 [[nodiscard]] LineState highlightLine(QStringView line, LineState previous, QList<Span> &spans);
+
+/// The links in one line, in order, given the state the previous line
+/// ended in: those that highlightLine() styles.
+[[nodiscard]] QList<Link> findLinks(QStringView line, LineState previous);
+
+/// The address a link's @p target opens: a web page, or an email to write.
+/// Invalid for anything else, such as a relative path or a local file,
+/// which a click must not open. A target starting with www. is a web page.
+[[nodiscard]] QUrl linkUrl(QStringView target);
 
 } // namespace inkwell::markdown

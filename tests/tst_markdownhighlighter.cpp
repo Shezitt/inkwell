@@ -426,7 +426,10 @@ private slots:
         const int open = countPixels(image, cell(2, 2, 5), red);
         QVERIFY(open > 0);
         QVERIFY(countPixels(image, cell(3, 2, 5), red) > open * 3 / 2); // filled
-        // A bar left of the quote, along both of its lines.
+        // A bar left of the quote, along both of its lines, with room
+        // between it and the text.
+        const QRect gap(quote.right() - 5, quote.top(), 6, quote.height());
+        QCOMPARE(countPixels(image, gap, grey), 0);
         for (int y = quote.top(); y <= quote.bottom(); ++y)
             QVERIFY(countPixels(image, QRect(0, y, quote.width(), 1), grey) > 0);
         QVERIFY(ruleRow(image) > editor.viewport()->width() * 3 / 4);

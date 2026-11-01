@@ -27,8 +27,15 @@ namespace inkwell {
 namespace {
 
 /// Lines longer than this are hard to read; extra width becomes margin.
-constexpr int kMaxTextWidth = 860;
-constexpr int kMinSideMargin = 16;
+constexpr int kMaxTextWidth = 876;
+/// Around the text, inside the area the editor paints: on the left, quote
+/// bars are drawn there, three levels deep at most.
+constexpr int kDocumentMargin = 20;
+/// Outside that area, at least.
+constexpr int kMinSideMargin = 8;
+constexpr qreal kQuoteBarWidth = 2;
+constexpr qreal kQuoteBarGap = 8; ///< between a quote bar and the text
+constexpr qreal kQuoteBarSpacing = 3; ///< between the bars of nested quotes
 constexpr int kTabStopSpaces = 4;
 
 /// Case-folds @p text and strips accents character by character, so that
@@ -93,7 +100,7 @@ EditorView::EditorView(PageId id, const QString &body, BackgroundWriter &writer,
     viewport()->setMouseTracking(true); // to show where a task can be clicked
     m_baseFont = font();
     updateTabStops();
-    document()->setDocumentMargin(12);
+    document()->setDocumentMargin(kDocumentMargin);
 
     setPlainText(body);
     document()->setModified(false);
@@ -416,10 +423,10 @@ void EditorView::paintSymbols(const QRect &area)
                 // so the bars of a quote's lines join; the outermost quote's
                 // bar is the leftmost.
                 const QRectF lines = place.lines.translated(rect.topLeft());
-                const qreal width = std::max(2.0, std::round(lines.left() / 6));
-                const qreal right = std::round(lines.left() * 3 / 4)
-                    - qreal(quoteDepth - 1 - quoteBar++) * width * 2;
-                painter.fillRect(QRectF(right - width, lines.top(), width, lines.height()),
+                const qreal right = lines.left() - kQuoteBarGap
+                    - qreal(quoteDepth - 1 - quoteBar++) * (kQuoteBarWidth + kQuoteBarSpacing);
+                painter.fillRect(
+                    QRectF(right - kQuoteBarWidth, lines.top(), kQuoteBarWidth, lines.height()),
                     colour(Style::Marker));
                 break;
             }

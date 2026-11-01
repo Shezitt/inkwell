@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   notes read as formatted text. The line being edited shows its syntax as it
   is written. The text itself does not change. View > Hide Markdown Syntax
   turns it off, and the choice is remembered.
+- Lists, tasks, quotes and rules drawn in place of their Markdown, outside the
+  line with the cursor: bullets as dots, tasks as checkboxes, quotes with a
+  bar beside them and rules as a line across. Click a checkbox to check or
+  uncheck its task; it can be undone like any edit.
 
 ## [0.3.0] - 2026-10-28
 

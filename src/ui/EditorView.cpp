@@ -8,13 +8,19 @@
 #include <QFontMetricsF>
 #include <QGuiApplication>
 #include <QMouseEvent>
+#include <QPaintEvent>
+#include <QPainter>
 #include <QScrollBar>
 #include <QStyleHints>
 #include <QTextBlock>
+#include <QTextLayout>
 #include <QTimer>
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <cmath>
+
+using namespace Qt::StringLiterals;
 
 namespace inkwell {
 
@@ -39,6 +45,36 @@ QString foldForMatching(QStringView text)
     return folded;
 }
 
+/// Where a symbol goes, in the coordinates of the block's origin.
+struct SymbolGeometry
+{
+    QRectF cell; ///< the space the hidden syntax keeps
+    QRectF line; ///< the line it is on, across the width of the text
+    QRectF lines; ///< all lines of the block, across the width of the text
+    qreal baseline = 0;
+};
+
+SymbolGeometry symbolGeometry(const QTextBlock &block, const markdown::Span &symbol)
+{
+    const QTextLayout *layout = block.layout();
+    const auto start = int(symbol.start);
+    const QTextLine line = layout->lineForTextPosition(start);
+    if (!line.isValid())
+        return {};
+    const QPointF origin = layout->position();
+    const qreal left = line.cursorToX(start);
+    const qreal right = line.cursorToX(start + int(symbol.length));
+    const QTextLine first = layout->lineAt(0);
+    const QTextLine last = layout->lineAt(layout->lineCount() - 1);
+    return {
+        QRectF(left, line.y(), right - left, line.height()).translated(origin),
+        QRectF(line.x(), line.y(), line.width(), line.height()).translated(origin),
+        QRectF(first.x(), first.y(), first.width(), last.rect().bottom() - first.y())
+            .translated(origin),
+        origin.y() + line.y() + line.ascent(),
+    };
+}
+
 } // namespace
 
 EditorView::EditorView(PageId id, const QString &body, BackgroundWriter &writer, QWidget *parent)
@@ -54,6 +90,7 @@ EditorView::EditorView(PageId id, const QString &body, BackgroundWriter &writer,
     setBackgroundRole(QPalette::Base);
     setAutoFillBackground(true);
     setLineWrapMode(QPlainTextEdit::WidgetWidth);
+    viewport()->setMouseTracking(true); // to show where a task can be clicked
     m_baseFont = font();
     updateTabStops();
     document()->setDocumentMargin(12);
@@ -233,6 +270,11 @@ void EditorView::focusOutEvent(QFocusEvent *event)
 
 void EditorView::mousePressEvent(QMouseEvent *event)
 {
+    // A click on a checkbox toggles its task, and leaves the cursor where it
+    // is. Without the press, the base class neither selects on a drag nor
+    // moves the cursor on the release.
+    if (event->button() == Qt::LeftButton && toggleTaskAt(event->position().toPoint()))
+        return;
     // Revealing the syntax moves the text. While the button is down, that
     // would move it under the pointer, which then selects text. After a
     // click, it would move the word a double-click is meant to select. So
@@ -244,9 +286,24 @@ void EditorView::mousePressEvent(QMouseEvent *event)
 
 void EditorView::mouseDoubleClickEvent(QMouseEvent *event)
 {
+    // The second click of a double-click toggles the task again, as with
+    // any checkbox.
+    if (event->button() == Qt::LeftButton && toggleTaskAt(event->position().toPoint()))
+        return;
     if (event->button() == Qt::LeftButton)
         m_mouseSelecting = true;
     QPlainTextEdit::mouseDoubleClickEvent(event);
+}
+
+void EditorView::mouseMoveEvent(QMouseEvent *event)
+{
+    QPlainTextEdit::mouseMoveEvent(event);
+    if (event->buttons() == Qt::NoButton) {
+        const bool onTask = !taskMarkAt(event->position().toPoint()).isNull();
+        const Qt::CursorShape shape = onTask ? Qt::PointingHandCursor : Qt::IBeamCursor;
+        if (viewport()->cursor().shape() != shape)
+            viewport()->setCursor(shape);
+    }
 }
 
 void EditorView::mouseReleaseEvent(QMouseEvent *event)
@@ -256,6 +313,12 @@ void EditorView::mouseReleaseEvent(QMouseEvent *event)
         m_mouseSelecting = false;
         m_revealTimer->start();
     }
+}
+
+void EditorView::paintEvent(QPaintEvent *event)
+{
+    QPlainTextEdit::paintEvent(event);
+    paintSymbols(event->rect());
 }
 
 void EditorView::resizeEvent(QResizeEvent *event)
@@ -286,6 +349,122 @@ void EditorView::revealCursorLine()
 {
     m_revealTimer->stop();
     m_highlighter->setRevealedBlock(textCursor().block());
+}
+
+void EditorView::paintSymbols(const QRect &area)
+{
+    using markdown::Style;
+    QPainter painter(viewport());
+    painter.setRenderHint(QPainter::Antialiasing);
+    const QFontMetricsF metrics(font());
+    // Symbols take the colours of the syntax they stand for.
+    const auto colour
+        = [this](Style style) { return m_highlighter->formatFor(style).foreground().color(); };
+
+    for (QTextBlock block = firstVisibleBlock(); block.isValid(); block = block.next()) {
+        const QRectF rect = blockBoundingGeometry(block).translated(contentOffset());
+        if (rect.top() > area.bottom())
+            break;
+        const QList<markdown::Span> symbols = m_highlighter->symbols(block);
+        const auto quoteDepth = std::count_if(symbols.cbegin(), symbols.cend(),
+            [](const markdown::Span &symbol) { return symbol.style == Style::QuoteBarSymbol; });
+        int quoteBar = 0;
+        for (const markdown::Span &symbol : symbols) {
+            const SymbolGeometry place = symbolGeometry(block, symbol);
+            const QRectF cell = place.cell.translated(rect.topLeft());
+            const qreal baseline = place.baseline + rect.top();
+            switch (symbol.style) {
+            case Style::BulletSymbol: {
+                const qreal radius = metrics.xHeight() * 0.33;
+                painter.setPen(Qt::NoPen);
+                painter.setBrush(colour(Style::ListMarker));
+                painter.drawEllipse(
+                    QPointF(cell.center().x(), baseline - metrics.xHeight() / 2), radius, radius);
+                break;
+            }
+            case Style::CheckboxSymbol:
+            case Style::CheckedBoxSymbol: {
+                const qreal side = std::min(cell.width(), metrics.capHeight() * 1.15);
+                QRectF box(0, 0, side, side);
+                box.moveCenter(QPointF(cell.center().x(), baseline - metrics.capHeight() / 2));
+                const qreal radius = side / 5;
+                if (symbol.style == Style::CheckboxSymbol) {
+                    const qreal width = std::max(1.0, side / 10);
+                    painter.setPen(QPen(colour(Style::ListMarker), width));
+                    painter.setBrush(Qt::NoBrush);
+                    const qreal inset = width / 2;
+                    painter.drawRoundedRect(
+                        box.adjusted(inset, inset, -inset, -inset), radius, radius);
+                    break;
+                }
+                painter.setPen(Qt::NoPen);
+                painter.setBrush(colour(Style::ListMarker));
+                painter.drawRoundedRect(box, radius, radius);
+                painter.setPen(QPen(palette().color(QPalette::Base), side / 7, Qt::SolidLine,
+                    Qt::RoundCap, Qt::RoundJoin));
+                const QPointF tick[] {
+                    box.topLeft() + QPointF(0.26, 0.52) * side,
+                    box.topLeft() + QPointF(0.43, 0.69) * side,
+                    box.topLeft() + QPointF(0.75, 0.33) * side,
+                };
+                painter.drawPolyline(tick, 3);
+                break;
+            }
+            case Style::QuoteBarSymbol: {
+                // Beside the text, in the margin, as wrapped lines start
+                // where the > is. From the top of the block to its bottom,
+                // so the bars of a quote's lines join; the outermost quote's
+                // bar is the leftmost.
+                const QRectF lines = place.lines.translated(rect.topLeft());
+                const qreal width = std::max(2.0, std::round(lines.left() / 6));
+                const qreal right = std::round(lines.left() * 3 / 4)
+                    - qreal(quoteDepth - 1 - quoteBar++) * width * 2;
+                painter.fillRect(QRectF(right - width, lines.top(), width, lines.height()),
+                    colour(Style::Marker));
+                break;
+            }
+            case Style::RuleSymbol: {
+                const QRectF line = place.line.translated(rect.topLeft());
+                const qreal thickness = std::max(1.0, std::round(metrics.height() / 16));
+                const qreal top = std::round(line.center().y() - thickness / 2);
+                painter.fillRect(
+                    QRectF(line.left(), top, line.width(), thickness), colour(Style::Rule));
+                break;
+            }
+            default:
+                break;
+            }
+        }
+    }
+}
+
+QTextCursor EditorView::taskMarkAt(const QPoint &point) const
+{
+    const QTextBlock block = cursorForPosition(point).block();
+    const QPointF origin = blockBoundingGeometry(block).translated(contentOffset()).topLeft();
+    for (const markdown::Span &symbol : m_highlighter->symbols(block)) {
+        if (symbol.style != markdown::Style::CheckboxSymbol
+            && symbol.style != markdown::Style::CheckedBoxSymbol)
+            continue;
+        if (symbolGeometry(block, symbol).cell.translated(origin).contains(point)) {
+            // Between the brackets: a space, or an x when done.
+            QTextCursor mark(block);
+            mark.setPosition(block.position() + int(symbol.start) + 1);
+            mark.setPosition(mark.position() + 1, QTextCursor::KeepAnchor);
+            return mark;
+        }
+    }
+    return {};
+}
+
+bool EditorView::toggleTaskAt(const QPoint &point)
+{
+    QTextCursor mark = taskMarkAt(point);
+    if (mark.isNull())
+        return false;
+    // An edit like any other: it can be undone, and is saved.
+    mark.insertText(mark.selectedText() == u" "_s ? u"x"_s : u" "_s);
+    return true;
 }
 
 void EditorView::updateMargins()

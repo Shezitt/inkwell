@@ -161,12 +161,46 @@ private slots:
         QCOMPARE(styled(u"see [the docs](https://x.y \"Title\") now"_s, Style::Hideable),
             (QStringList {u"["_s, u"](https://x.y \"Title\")"_s}));
 
-        // Bare URLs stay, and so does the syntax of whole lines.
-        for (const QString &line : {u"go to https://example.com"_s, u"- [ ] item"_s, u"> quote"_s,
-                 u"```cpp"_s, u"---"_s, u"1. first"_s}) {
+        // A task's bullet goes, its checkbox standing for it; a quote's >s
+        // are drawn as bars, beside the text, so the spaces around them go.
+        QCOMPARE(styled(u"  -\t[ ] task"_s, Style::Hideable), QStringList {u"-\t"_s});
+        QCOMPARE(styled(u" > >\tdeep"_s, Style::Hideable), (QStringList {u" "_s, u" "_s, u"\t"_s}));
+        QVERIFY(styled(u">>"_s, Style::Hideable).isEmpty());
+
+        // Bare URLs stay, and so do the numbers of lists and code fences.
+        for (const QString &line : {u"go to https://example.com"_s, u"1. [ ] item"_s, u"```cpp"_s,
+                 u"---"_s, u"1. first"_s}) {
             QVERIFY2(styled(line, Style::Hideable).isEmpty(), qPrintable(line));
         }
         QVERIFY(styled(u"*x*"_s, Style::Hideable, LineState::InBacktickFence).isEmpty());
+    }
+
+    void symbols()
+    {
+        QCOMPARE(styled(u"- item"_s, Style::BulletSymbol), QStringList {u"-"_s});
+        QCOMPARE(styled(u"  + *it*"_s, Style::BulletSymbol), QStringList {u"+"_s});
+        QVERIFY(styled(u"1. first"_s, Style::BulletSymbol).isEmpty()); // numbers stay
+
+        // A task's checkbox replaces its bullet.
+        QCOMPARE(styled(u"- [ ] todo"_s, Style::CheckboxSymbol), QStringList {u"[ ]"_s});
+        QVERIFY(styled(u"- [ ] todo"_s, Style::BulletSymbol).isEmpty());
+        QVERIFY(styled(u"- [ ] todo"_s, Style::CheckedBoxSymbol).isEmpty());
+        QCOMPARE(styled(u"* [X] done"_s, Style::CheckedBoxSymbol), QStringList {u"[X]"_s});
+        QCOMPARE(styled(u"2. [x] done"_s, Style::CheckedBoxSymbol), QStringList {u"[x]"_s});
+        QCOMPARE(styled(u"- [y] no"_s, Style::BulletSymbol), QStringList {u"-"_s});
+        QVERIFY(styled(u"- [y] no"_s, Style::CheckboxSymbol).isEmpty());
+
+        // Each > of nested quotes gets a bar.
+        QCOMPARE(styled(u"> > - deep"_s, Style::QuoteBarSymbol), (QStringList {u">"_s, u">"_s}));
+        QCOMPARE(styled(u"> > - deep"_s, Style::BulletSymbol), QStringList {u"-"_s});
+        QCOMPARE(styled(u">"_s, Style::QuoteBarSymbol), QStringList {u">"_s});
+
+        QCOMPARE(styled(u" * * *"_s, Style::RuleSymbol), QStringList {u" * * *"_s});
+        QVERIFY(styled(u"- * -"_s, Style::RuleSymbol).isEmpty());
+
+        // Nothing in code.
+        for (const Style style : {Style::BulletSymbol, Style::QuoteBarSymbol, Style::RuleSymbol})
+            QVERIFY(styled(u"> - ---"_s, style, LineState::InTildeFence).isEmpty());
     }
 
     void plainTextHasNoSpans()

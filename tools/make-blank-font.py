@@ -4,7 +4,9 @@
 blank and takes no space.
 
 The editor draws hidden Markdown syntax in it: the characters stay in the
-text, but nothing of them shows, not even when they are selected.
+text, but nothing of them shows, not even when they are selected. Its height
+is that of a usual font, 1 em, so that sized to a line it keeps the line as
+high as before, even if no other character is left on it.
 
 Usage: python3 -m pip install fonttools
        python3 tools/make-blank-font.py data/fonts/InkwellBlank.ttf
@@ -17,6 +19,7 @@ from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib.tables._c_m_a_p import CmapSubtable
 
 FAMILY = "Inkwell Blank"
+ASCENT, DESCENT = 800, 200  # in units of 1/1000 em
 
 
 def build(path):
@@ -26,11 +29,14 @@ def build(path):
     builder.setupCharacterMap({})
     empty = TTGlyphPen(None).glyph()
     builder.setupGlyf({name: empty for name in glyphs})
-    # No advance, and no height, so that lines are as high as without it.
     builder.setupHorizontalMetrics({name: (0, 0) for name in glyphs})
-    builder.setupHorizontalHeader(ascent=0, descent=0)
+    builder.setupHorizontalHeader(ascent=ASCENT, descent=-DESCENT)
     builder.setupOS2(
-        sTypoAscender=0, sTypoDescender=0, sTypoLineGap=0, usWinAscent=0, usWinDescent=0
+        sTypoAscender=ASCENT,
+        sTypoDescender=-DESCENT,
+        sTypoLineGap=0,
+        usWinAscent=ASCENT,
+        usWinDescent=DESCENT,
     )
     builder.setupNameTable(
         {

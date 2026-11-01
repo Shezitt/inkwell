@@ -5,6 +5,7 @@
 #include "core/Types.h"
 
 #include <QPlainTextEdit>
+#include <QTextCursor>
 
 class QTimer;
 
@@ -74,7 +75,9 @@ protected:
     void focusOutEvent(QFocusEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void showEvent(QShowEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
@@ -84,6 +87,9 @@ private:
     void updateTabStops();
     void applyPendingScroll();
     void revealCursorLine();
+    void paintSymbols(const QRect &area);
+    [[nodiscard]] QTextCursor taskMarkAt(const QPoint &point) const;
+    bool toggleTaskAt(const QPoint &point);
 
     PageId m_pageId;
     BackgroundWriter &m_writer;

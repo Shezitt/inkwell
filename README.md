@@ -38,8 +38,9 @@ written in C++20 with Qt 6.
 - **Markdown, formatted as you type.** Headings, **bold**, *italic*, `code`,
   lists, task lists, quotes and links are styled in colours that follow your
   theme. The syntax, such as `**` or a link's URL, shows only on the line
-  you're editing, so the rest reads like a formatted page. Notes stay plain
-  text; both are settings under View.
+  you're editing, so the rest reads like a formatted page: lists get bullets,
+  tasks get checkboxes you can click, quotes get a bar and `---` becomes a
+  line. Notes stay plain text; both are settings under View.
 - **Trash.** Deleting a page or folder moves it to the Trash, at the bottom of
   the sidebar, where you can restore it or delete it for good.
 - **Full-text search.** <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> finds the
@@ -141,7 +142,7 @@ v0.1 lays the foundation. Ideas for what comes next:
 - [x] Drag and drop to reorder and move pages and folders
 - [x] Markdown syntax highlighting
 - [x] Markdown syntax hidden outside the line being edited
-- [ ] Bullets, clickable task checkboxes, rules and quote bars drawn in place
+- [x] Bullets, clickable task checkboxes, rules and quote bars drawn in place
 - [ ] <kbd>Ctrl</kbd>+click to open links
 - [x] Trash, instead of permanent delete
 - [x] Quick switcher (<kbd>Ctrl</kbd>+<kbd>P</kbd>) to open pages by name

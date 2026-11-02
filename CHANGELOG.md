@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-01
+
+Notes read like formatted pages while staying plain text: Markdown syntax
+shows only on the line being edited, lists, tasks, quotes and rules are drawn
+in its place, and links open with Ctrl+click. Text can be zoomed too.
+
+The notebook format is unchanged, so 0.3.0 still opens notebooks used with
+this version.
+
 ### Added
 
 - Zoom: View > Zoom In (Ctrl++ or Ctrl+=), Zoom Out (Ctrl+-) and Reset Zoom
@@ -103,7 +112,8 @@ The first release: the foundation of Inkwell.
 - `--database` option to open a notebook from any location.
 - Desktop entry and icon for Linux.
 
-[Unreleased]: https://github.com/Shezitt/inkwell/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Shezitt/inkwell/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Shezitt/inkwell/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Shezitt/inkwell/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Shezitt/inkwell/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/Shezitt/inkwell/compare/v0.1.0...v0.1.1

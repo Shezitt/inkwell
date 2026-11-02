@@ -5,8 +5,12 @@
 #include "core/AutosaveTimer.h"
 #include "core/BackgroundWriter.h"
 
+#include <QCursor>
+#include <QDesktopServices>
 #include <QFontMetricsF>
 #include <QGuiApplication>
+#include <QHelpEvent>
+#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
@@ -15,6 +19,8 @@
 #include <QTextBlock>
 #include <QTextLayout>
 #include <QTimer>
+#include <QToolTip>
+#include <QUrl>
 #include <QWheelEvent>
 
 #include <algorithm>
@@ -97,7 +103,7 @@ EditorView::EditorView(PageId id, const QString &body, BackgroundWriter &writer,
     setBackgroundRole(QPalette::Base);
     setAutoFillBackground(true);
     setLineWrapMode(QPlainTextEdit::WidgetWidth);
-    viewport()->setMouseTracking(true); // to show where a task can be clicked
+    viewport()->setMouseTracking(true); // to show where a click toggles a task or opens a link
     m_baseFont = font();
     updateTabStops();
     document()->setDocumentMargin(kDocumentMargin);
@@ -275,8 +281,28 @@ void EditorView::focusOutEvent(QFocusEvent *event)
     QPlainTextEdit::focusOutEvent(event);
 }
 
+void EditorView::keyPressEvent(QKeyEvent *event)
+{
+    QPlainTextEdit::keyPressEvent(event);
+    // Whether a key event's modifiers include the key itself depends on the
+    // platform.
+    if (event->key() == Qt::Key_Control)
+        updatePointer(viewport()->mapFromGlobal(QCursor::pos()), true);
+}
+
+void EditorView::keyReleaseEvent(QKeyEvent *event)
+{
+    QPlainTextEdit::keyReleaseEvent(event);
+    if (event->key() == Qt::Key_Control)
+        updatePointer(viewport()->mapFromGlobal(QCursor::pos()), false);
+}
+
 void EditorView::mousePressEvent(QMouseEvent *event)
 {
+    // Ctrl+click opens a link, without moving the cursor.
+    if (event->button() == Qt::LeftButton && event->modifiers().testFlag(Qt::ControlModifier)
+        && openLinkAt(event->position().toPoint()))
+        return;
     // A click on a checkbox toggles its task, and leaves the cursor where it
     // is. Without the press, the base class neither selects on a drag nor
     // moves the cursor on the release.
@@ -293,6 +319,10 @@ void EditorView::mousePressEvent(QMouseEvent *event)
 
 void EditorView::mouseDoubleClickEvent(QMouseEvent *event)
 {
+    // A link opens once, not also on the second click of a double-click.
+    if (event->button() == Qt::LeftButton && event->modifiers().testFlag(Qt::ControlModifier)
+        && linkAt(event->position().toPoint()).isValid())
+        return;
     // The second click of a double-click toggles the task again, as with
     // any checkbox.
     if (event->button() == Qt::LeftButton && toggleTaskAt(event->position().toPoint()))
@@ -305,12 +335,9 @@ void EditorView::mouseDoubleClickEvent(QMouseEvent *event)
 void EditorView::mouseMoveEvent(QMouseEvent *event)
 {
     QPlainTextEdit::mouseMoveEvent(event);
-    if (event->buttons() == Qt::NoButton) {
-        const bool onTask = !taskMarkAt(event->position().toPoint()).isNull();
-        const Qt::CursorShape shape = onTask ? Qt::PointingHandCursor : Qt::IBeamCursor;
-        if (viewport()->cursor().shape() != shape)
-            viewport()->setCursor(shape);
-    }
+    if (event->buttons() == Qt::NoButton)
+        updatePointer(
+            event->position().toPoint(), event->modifiers().testFlag(Qt::ControlModifier));
 }
 
 void EditorView::mouseReleaseEvent(QMouseEvent *event)
@@ -342,6 +369,23 @@ void EditorView::showEvent(QShowEvent *event)
     // Wait for the first layout, so the scroll bar has its real range.
     if (m_pendingScroll >= 0)
         QTimer::singleShot(0, this, &EditorView::applyPendingScroll);
+}
+
+bool EditorView::viewportEvent(QEvent *event)
+{
+    // A link's URL is hidden but on the line being edited: say where it goes.
+    if (event->type() == QEvent::ToolTip) {
+        const auto *help = static_cast<QHelpEvent *>(event);
+        if (const QUrl url = linkAt(help->pos()); url.isValid()) {
+            QToolTip::showText(help->globalPos(),
+                tr("%1\nCtrl+click to open").arg(url.toDisplayString()), viewport());
+        } else {
+            QToolTip::hideText();
+            event->ignore();
+        }
+        return true;
+    }
+    return QPlainTextEdit::viewportEvent(event);
 }
 
 void EditorView::applyPendingScroll()
@@ -472,6 +516,51 @@ bool EditorView::toggleTaskAt(const QPoint &point)
     // An edit like any other: it can be undone, and is saved.
     mark.insertText(mark.selectedText() == u" "_s ? u"x"_s : u" "_s);
     return true;
+}
+
+QUrl EditorView::linkAt(const QPoint &point) const
+{
+    // Links are found where they are styled, from the state the highlighter
+    // keeps with each block: none in a code block, for instance.
+    if (!markdownHighlighting())
+        return {};
+    const QTextBlock block = cursorForPosition(point).block();
+    const QTextLayout *layout = block.layout();
+    const QPointF inLayout = QPointF(point)
+        - blockBoundingGeometry(block).translated(contentOffset()).topLeft() - layout->position();
+    for (int i = 0; i < layout->lineCount(); ++i) {
+        const QTextLine line = layout->lineAt(i);
+        if (!line.naturalTextRect().contains(inLayout))
+            continue;
+        // The character under the point. Hidden ones have no width, so the
+        // part of a link that shows is the part that can be clicked.
+        const int position = line.xToCursor(inLayout.x(), QTextLine::CursorOnCharacter);
+        const int state = block.previous().userState();
+        const auto previous = state < 0 ? markdown::LineState::Normal : markdown::LineState(state);
+        for (const markdown::Link &link : markdown::findLinks(block.text(), previous)) {
+            if (position >= link.start && position < link.start + link.length)
+                return markdown::linkUrl(link.target);
+        }
+        break;
+    }
+    return {};
+}
+
+bool EditorView::openLinkAt(const QPoint &point)
+{
+    const QUrl url = linkAt(point);
+    if (!url.isValid())
+        return false;
+    QDesktopServices::openUrl(url);
+    return true;
+}
+
+void EditorView::updatePointer(const QPoint &point, bool controlHeld)
+{
+    const bool clickable = !taskMarkAt(point).isNull() || (controlHeld && linkAt(point).isValid());
+    const Qt::CursorShape shape = clickable ? Qt::PointingHandCursor : Qt::IBeamCursor;
+    if (viewport()->cursor().shape() != shape)
+        viewport()->setCursor(shape);
 }
 
 void EditorView::updateMargins()

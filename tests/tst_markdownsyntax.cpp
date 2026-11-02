@@ -35,6 +35,16 @@ LineState stateAfter(const QStringList &lines)
 
 } // namespace
 
+namespace inkwell::markdown {
+
+/// How QCOMPARE prints a link that differs.
+char *toString(const Link &link)
+{
+    return QTest::toString(u"Link(%1, %2, %3)"_s.arg(link.start).arg(link.length).arg(link.target));
+}
+
+} // namespace inkwell::markdown
+
 class TestMarkdownSyntax : public QObject
 {
     Q_OBJECT
@@ -173,6 +183,55 @@ private slots:
             QVERIFY2(styled(line, Style::Hideable).isEmpty(), qPrintable(line));
         }
         QVERIFY(styled(u"*x*"_s, Style::Hideable, LineState::InBacktickFence).isEmpty());
+    }
+
+    void links()
+    {
+        const QString line = u"see [the docs](https://x.y/a) or http://b.c, `http://code`"_s;
+        QCOMPARE(findLinks(line, LineState::Normal),
+            (QList<Link> {{4, 25, u"https://x.y/a"_s}, {33, 10, u"http://b.c"_s}}));
+        QCOMPARE(findLinks(u"[a](x \"title\") and [b](y)"_s, LineState::Normal),
+            (QList<Link> {{0, 14, u"x"_s}, {19, 6, u"y"_s}}));
+        QCOMPARE(findLinks(u"# [Home](https://h.i) #"_s, LineState::Normal),
+            (QList<Link> {{2, 19, u"https://h.i"_s}}));
+        QCOMPARE(findLinks(u"> - [ ] read https://a.b"_s, LineState::Normal),
+            (QList<Link> {{13, 11, u"https://a.b"_s}}));
+        QVERIFY(findLinks(u"[a](https://x.y)"_s, LineState::InBacktickFence).isEmpty());
+        QCOMPARE(findLinks(u"http://a.b [x](y)"_s, LineState::Normal),
+            (QList<Link> {{0, 10, u"http://a.b"_s}, {11, 6, u"y"_s}}));
+        QVERIFY(findLinks(u"no links [here] (x)"_s, LineState::Normal).isEmpty());
+    }
+
+    void linkUrl_data()
+    {
+        QTest::addColumn<QString>("target");
+        QTest::addColumn<QUrl>("url");
+        QTest::newRow("https") << u"https://example.com/a?b=c#d"_s
+                               << QUrl(u"https://example.com/a?b=c#d"_s);
+        QTest::newRow("http") << u"http://example.com"_s << QUrl(u"http://example.com"_s);
+        QTest::newRow("ftp") << u"ftp://files.example.com/x"_s
+                             << QUrl(u"ftp://files.example.com/x"_s);
+        QTest::newRow("upper case") << u"HTTPS://Example.com"_s << QUrl(u"https://example.com"_s);
+        QTest::newRow("www") << u"www.example.com/x"_s << QUrl(u"https://www.example.com/x"_s);
+        QTest::newRow("mail") << u"mailto:me@example.com"_s << QUrl(u"mailto:me@example.com"_s);
+        QTest::newRow("spaces around") << u" https://a.b "_s << QUrl(u"https://a.b"_s);
+        QTest::newRow("relative") << u"notes/todo.md"_s << QUrl();
+        QTest::newRow("anchor") << u"#heading"_s << QUrl();
+        QTest::newRow("bare domain") << u"example.com"_s << QUrl();
+        QTest::newRow("file") << u"file:///usr/bin/rm"_s << QUrl();
+        QTest::newRow("file on a host") << u"file://localhost/usr/bin/rm"_s << QUrl();
+        QTest::newRow("other scheme") << u"ssh://example.com"_s << QUrl();
+        QTest::newRow("javascript") << u"javascript:alert(1)"_s << QUrl();
+        QTest::newRow("no host") << u"https:///path"_s << QUrl();
+        QTest::newRow("empty mail") << u"mailto:"_s << QUrl();
+        QTest::newRow("empty") << QString() << QUrl();
+    }
+
+    void linkUrl()
+    {
+        QFETCH(QString, target);
+        QFETCH(QUrl, url);
+        QCOMPARE(inkwell::markdown::linkUrl(target), url);
     }
 
     void symbols()

@@ -4,14 +4,17 @@
 #include "ui/MarkdownHighlighter.h"
 
 #include <QAbstractTextDocumentLayout>
+#include <QDesktopServices>
 #include <QFontDatabase>
 #include <QGuiApplication>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QStyleHints>
 #include <QTest>
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QTextLayout>
+#include <QToolTip>
 
 #include <tuple>
 
@@ -66,8 +69,13 @@ class TestMarkdownHighlighter : public QObject
 {
     Q_OBJECT
 
+public slots:
+    /// Stands in for the browser, so tests can check what would open.
+    void recordUrl(const QUrl &url) { m_opened.append(url); }
+
 private:
     std::unique_ptr<TestNotebook> m_notebook;
+    QList<QUrl> m_opened;
 
 private slots:
     void init()
@@ -76,7 +84,11 @@ private slots:
         QVERIFY(m_notebook->open());
     }
 
-    void cleanup() { m_notebook.reset(); }
+    void cleanup()
+    {
+        m_notebook.reset();
+        m_opened.clear();
+    }
 
     void stylesTheMarkdown()
     {
@@ -504,6 +516,118 @@ private slots:
         QTest::mouseClick(editor.viewport(), Qt::LeftButton, {}, revealed);
         QCOMPARE(line(1), u"- [x] open"_s);
         QCOMPARE(editor.textCursor().block().blockNumber(), 1);
+    }
+
+    void editorOpensALinkWhenItIsCtrlClicked()
+    {
+        for (const QString &scheme : {u"https"_s, u"mailto"_s})
+            QDesktopServices::setUrlHandler(scheme, this, "recordUrl");
+        const auto unsetHandlers = qScopeGuard([] {
+            for (const QString &scheme : {u"https"_s, u"mailto"_s})
+                QDesktopServices::unsetUrlHandler(scheme);
+        });
+        EditorView editor(m_notebook->newPage(),
+            u"start\nsee [the docs](https://example.com/docs) or https://example.org\n"
+            "[mail](mailto:me@example.com), [a note](notes.md) [site](www.example.net)\n```\nhttps://in.code\n```"_s,
+            *m_notebook->writer);
+        editor.resize(600, 300);
+        editor.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&editor));
+        QTRY_VERIFY(isHighlighted(*editor.document()));
+        // The middle of a character of the text.
+        const auto at = [&editor](int line, const QString &text) {
+            const QTextBlock block = editor.document()->findBlockByNumber(line);
+            QTextCursor cursor(block);
+            cursor.setPosition(block.position() + int(block.text().indexOf(text)));
+            const QRect left = editor.cursorRect(cursor);
+            cursor.movePosition(QTextCursor::NextCharacter);
+            return QPoint((left.left() + editor.cursorRect(cursor).left()) / 2, left.center().y());
+        };
+        const QUrl docs(u"https://example.com/docs"_s);
+
+        // Its text opens a link whose URL is hidden, and the cursor stays.
+        QTest::mouseClick(editor.viewport(), Qt::LeftButton, Qt::ControlModifier, at(1, u"docs"_s));
+        QCOMPARE(m_opened, QList<QUrl> {docs});
+        QCOMPARE(editor.textCursor().position(), 0);
+        QTest::qWait(QGuiApplication::styleHints()->mouseDoubleClickInterval() + 50);
+        QCOMPARE(editor.textCursor().position(), 0);
+
+        // Once, when double-clicked.
+        const QPoint the = at(1, u"the"_s);
+        QTest::mousePress(editor.viewport(), Qt::LeftButton, Qt::ControlModifier, the);
+        QTest::mouseRelease(editor.viewport(), Qt::LeftButton, Qt::ControlModifier, the);
+        QTest::mouseDClick(editor.viewport(), Qt::LeftButton, Qt::ControlModifier, the);
+        QTest::mouseRelease(editor.viewport(), Qt::LeftButton, Qt::ControlModifier, the);
+        QCOMPARE(m_opened, (QList<QUrl> {docs, docs}));
+        QVERIFY(!editor.textCursor().hasSelection());
+
+        // Without Ctrl, a click places the cursor, as in any text.
+        QTest::mouseClick(editor.viewport(), Qt::LeftButton, {}, at(1, u"docs"_s));
+        QCOMPARE(m_opened.size(), 2);
+        QCOMPARE(editor.textCursor().block().blockNumber(), 1);
+        QTest::qWait(QGuiApplication::styleHints()->mouseDoubleClickInterval() + 50);
+
+        // On the line being edited, its URL opens it too, as does a bare one.
+        QTest::mouseClick(
+            editor.viewport(), Qt::LeftButton, Qt::ControlModifier, at(1, u"example.com"_s));
+        QTest::mouseClick(
+            editor.viewport(), Qt::LeftButton, Qt::ControlModifier, at(1, u"example.org"_s));
+        QCOMPARE(m_opened, (QList<QUrl> {docs, docs, docs, QUrl(u"https://example.org"_s)}));
+        m_opened.clear();
+
+        // Only links open: not the text beside them, not a page that is
+        // not on the web, not a URL in code.
+        const QPoint pastTheEnd = at(1, u"org"_s) + QPoint(60, 0);
+        const QPoint beforeTheStart(
+            editor.cursorRect(QTextCursor(editor.document()->findBlockByNumber(2))).left() - 10,
+            at(2, u"mail"_s).y());
+        QTest::mouseClick(editor.viewport(), Qt::LeftButton, Qt::ControlModifier, at(1, u"see"_s));
+        QTest::mouseClick(editor.viewport(), Qt::LeftButton, Qt::ControlModifier, pastTheEnd);
+        QTest::mouseClick(editor.viewport(), Qt::LeftButton, Qt::ControlModifier, beforeTheStart);
+        QTest::mouseClick(editor.viewport(), Qt::LeftButton, Qt::ControlModifier, at(2, u"note"_s));
+        QTest::mouseClick(editor.viewport(), Qt::LeftButton, Qt::ControlModifier, at(4, u"in"_s));
+        QVERIFY(m_opened.isEmpty());
+        QTest::mouseClick(editor.viewport(), Qt::LeftButton, Qt::ControlModifier, at(2, u"mail"_s));
+        QTest::mouseClick(editor.viewport(), Qt::LeftButton, Qt::ControlModifier, at(2, u"site"_s));
+        QCOMPARE(m_opened,
+            (QList<QUrl> {QUrl(u"mailto:me@example.com"_s), QUrl(u"https://www.example.net"_s)}));
+        m_opened.clear();
+
+        // The pointer shows where Ctrl+click opens a link.
+        QTest::keyClick(&editor, Qt::Key_Home, Qt::ControlModifier);
+        const QPoint link = at(1, u"docs"_s);
+        const auto hover = [&editor](const QPoint &point, Qt::KeyboardModifiers modifiers) {
+            QMouseEvent move(QEvent::MouseMove, point, editor.viewport()->mapToGlobal(point),
+                Qt::NoButton, Qt::NoButton, modifiers);
+            QApplication::sendEvent(editor.viewport(), &move);
+            return editor.viewport()->cursor().shape();
+        };
+        QCOMPARE(hover(link, {}), Qt::IBeamCursor);
+        QCOMPARE(hover(link, Qt::ControlModifier), Qt::PointingHandCursor);
+        QCOMPARE(hover(at(1, u"see"_s), Qt::ControlModifier), Qt::IBeamCursor);
+        QCOMPARE(hover(link, Qt::ControlModifier), Qt::PointingHandCursor);
+        // Pressing or releasing Ctrl changes it, without moving the mouse.
+        QCursor::setPos(editor.viewport()->mapToGlobal(link));
+        QTest::keyRelease(&editor, Qt::Key_Control);
+        QCOMPARE(editor.viewport()->cursor().shape(), Qt::IBeamCursor);
+        QTest::keyPress(&editor, Qt::Key_Control);
+        QCOMPARE(editor.viewport()->cursor().shape(), Qt::PointingHandCursor);
+        QTest::keyRelease(&editor, Qt::Key_Control);
+        QCursor::setPos(editor.viewport()->mapToGlobal(at(1, u"see"_s)));
+        QTest::keyPress(&editor, Qt::Key_Control);
+        QCOMPARE(editor.viewport()->cursor().shape(), Qt::IBeamCursor);
+        QTest::keyRelease(&editor, Qt::Key_Control);
+
+        // Hovering it says where it goes.
+        QHelpEvent help(QEvent::ToolTip, link, editor.viewport()->mapToGlobal(link));
+        QApplication::sendEvent(editor.viewport(), &help);
+        QVERIFY(QToolTip::text().contains(docs.toString()));
+        QVERIFY(QToolTip::text().contains(u"Ctrl+click"_s));
+
+        // Links are found as they are highlighted.
+        editor.setMarkdownHighlighting(false);
+        QTest::mouseClick(editor.viewport(), Qt::LeftButton, Qt::ControlModifier, at(1, u"docs"_s));
+        QVERIFY(m_opened.isEmpty());
     }
 
     void headingsGrowWithTheZoom()

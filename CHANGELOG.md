@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   line with the cursor: bullets as dots, tasks as checkboxes, quotes with a
   bar beside them and rules as a line across. Click a checkbox to check or
   uncheck its task; it can be undone like any edit.
+- Ctrl+click on a link, or a bare URL, opens it in the browser or mail
+  client. The pointer becomes a hand while Ctrl is held over a link, and
+  hovering a link shows where it goes. Only web (http, https, ftp) and
+  mailto: addresses open, and a target starting with www. is a web page.
 
 ## [0.3.0] - 2026-10-28
 

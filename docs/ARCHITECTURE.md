@@ -32,13 +32,13 @@ a GUI and leaves the door open to other front ends.
 | `core/Schema`              | Versioned migrations through `PRAGMA user_version`                 |
 | `core/NoteStore`           | CRUD, moves and full-text search; loads page bodies on demand      |
 | `core/FuzzyMatch`          | Scores quick-switcher matches of a pattern against page titles     |
-| `core/MarkdownSyntax`      | Finds Markdown in a line, carrying fenced-code state across lines  |
+| `core/MarkdownSyntax`      | Finds Markdown and links in a line, carrying fenced-code state     |
 | `core/Session`             | Persists open tabs, cursor positions and window layout             |
 | `core/BackgroundWriter`    | Writes page bodies and the session on a dedicated thread           |
 | `core/AutosaveTimer`       | Decides *when* an edited page should be saved                      |
 | `ui/PageTreeModel`         | In-memory folder/page tree exposed as a `QAbstractItemModel`       |
 | `ui/NavigationPane`        | Sidebar: create, rename, delete folders and pages                  |
-| `ui/EditorView`            | Editor for one page; hands snapshots to the writer; draws symbols  |
+| `ui/EditorView`            | Editor for one page; saves via the writer; symbols; opens links    |
 | `ui/MarkdownHighlighter`   | Turns Markdown spans into theme-aware formats; hides syntax        |
 | `ui/EditorArea`            | Tabs; one `EditorView` per open page                               |
 | `ui/SearchPopup`           | Base of the search popups: input, results, keyboard handling       |
@@ -192,6 +192,12 @@ what is saved, copied and searched is exactly what was typed.
   over the text after painting it. Quote bars go in the margin instead,
   because a plain-text editor starts wrapped lines where the `>` is, and a
   click on a checkbox edits the text between its brackets.
+- Ctrl+click opens a link. `EditorView` asks `MarkdownSyntax` for the links
+  of the line under the pointer, from the same parse as highlighting, so a
+  link opens exactly where it is styled as one, and finds the character
+  under the pointer: hidden characters have no width, so only what shows
+  can be clicked. `markdown::linkUrl()` decides what a target opens: only
+  web and mailto: addresses, as a `file:` link could start a program.
 - `EditorView` reveals the line with the cursor. After a click it waits for
   the double-click interval to pass: revealing moves the text, which would
   otherwise move the word a double-click is meant to select.

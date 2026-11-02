@@ -8,6 +8,7 @@
 #include <QTextCursor>
 
 class QTimer;
+class QUrl;
 
 namespace inkwell {
 
@@ -73,6 +74,8 @@ signals:
 protected:
     void changeEvent(QEvent *event) override;
     void focusOutEvent(QFocusEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
+    void keyReleaseEvent(QKeyEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -80,6 +83,7 @@ protected:
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void showEvent(QShowEvent *event) override;
+    bool viewportEvent(QEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
 
 private:
@@ -90,6 +94,11 @@ private:
     void paintSymbols(const QRect &area);
     [[nodiscard]] QTextCursor taskMarkAt(const QPoint &point) const;
     bool toggleTaskAt(const QPoint &point);
+    /// The address the link at @p point opens, if it can be opened.
+    [[nodiscard]] QUrl linkAt(const QPoint &point) const;
+    bool openLinkAt(const QPoint &point);
+    /// Shows a pointing hand where a click does more than place the cursor.
+    void updatePointer(const QPoint &point, bool controlHeld);
 
     PageId m_pageId;
     BackgroundWriter &m_writer;

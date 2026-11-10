@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.4.0] - 2026-11-01
+## [0.4.0] - 2026-11-10
 
 Notes read like formatted pages while staying plain text: Markdown syntax
 shows only on the line being edited, lists, tasks, quotes and rules are drawn

@@ -143,7 +143,7 @@ NavigationPane::NavigationPane(PageTreeModel *model, QWidget *parent)
     });
     connect(m_view->itemDelegate(), &QAbstractItemDelegate::closeEditor, this, [this] {
         if (const PageId page = std::exchange(m_namingPage, 0))
-            emit newPageNamed(page);
+            emit pageNamed(page);
     });
     connect(m_model, &PageTreeModel::errorOccurred, this, [this](const QString &message) {
         QMessageBox::warning(
@@ -161,6 +161,16 @@ void NavigationPane::revealPage(PageId id)
         m_view->expand(parent);
     m_view->selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect);
     m_view->scrollTo(index);
+}
+
+void NavigationPane::renamePage(PageId id)
+{
+    const QModelIndex index = m_model->pageIndex(id);
+    if (!index.isValid())
+        return;
+    revealPage(id);
+    m_namingPage = id;
+    startRenaming(index);
 }
 
 QList<FolderId> NavigationPane::expandedFolders() const

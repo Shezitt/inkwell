@@ -6,6 +6,8 @@
 #include "ui/PageTreeModel.h"
 
 #include <QAction>
+#include <QApplication>
+#include <QLineEdit>
 #include <QSignalSpy>
 #include <QTest>
 #include <QTreeView>
@@ -93,6 +95,28 @@ private slots:
 
         QTest::keyClick(view, Qt::Key_Down, Qt::ControlModifier | Qt::ShiftModifier);
         QCOMPARE(pagesIn(folder->id), (QStringList {u"a"_s, u"c"_s, u"b"_s}));
+    }
+
+    void renamesSelectionWithF2()
+    {
+        const auto folder = m_store->createFolder(kNoFolder, u"F"_s);
+        const auto page = m_store->createPage(folder->id, u"a"_s);
+        m_model = std::make_unique<PageTreeModel>(*m_store);
+        m_pane = std::make_unique<NavigationPane>(m_model.get());
+        m_pane->show();
+        QVERIFY(QTest::qWaitForWindowActive(m_pane.get()));
+
+        QTreeView *view = m_pane->view();
+        view->setFocus();
+        view->setCurrentIndex(m_model->pageIndex(page->id));
+        QTest::keyClick(view, Qt::Key_F2);
+        auto *editor = qobject_cast<QLineEdit *>(QApplication::focusWidget());
+        QVERIFY(editor);
+        QCOMPARE(editor->text(), u"a"_s);
+        editor->selectAll();
+        QTest::keyClicks(editor, u"b"_s);
+        QTest::keyClick(editor, Qt::Key_Return);
+        QTRY_COMPARE(pagesIn(folder->id), QStringList {u"b"_s}); // committed when idle
     }
 
     void movesSelectionToTrashWithDeleteKey()

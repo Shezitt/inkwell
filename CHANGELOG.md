@@ -35,6 +35,9 @@ this version.
   client. The pointer becomes a hand while Ctrl is held over a link, and
   hovering a link shows where it goes. Only web (http, https, ftp) and
   mailto: addresses open, and a target starting with www. is a web page.
+- F2 renames the open page while you are writing in it, not only what is
+  selected in the sidebar. The name is edited in the sidebar, which shows if
+  hidden, and Enter returns to the page.
 
 ## [0.3.0] - 2026-10-28
 

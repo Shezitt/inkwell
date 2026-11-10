@@ -125,7 +125,7 @@ for instance on a synced folder, start Inkwell with
 | New folder                 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd>     |
 | Go to page                 | <kbd>Ctrl</kbd>+<kbd>P</kbd>                     |
 | Search in all pages        | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd>     |
-| Rename (in the sidebar)    | <kbd>F2</kbd>                                    |
+| Rename the open page       | <kbd>F2</kbd> (in the sidebar: the selection)    |
 | Move to Trash (in the sidebar) | <kbd>Delete</kbd>                            |
 | Move up / down (in the sidebar) | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>↑</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>↓</kbd> |
 | Save now                   | <kbd>Ctrl</kbd>+<kbd>S</kbd> (optional)          |

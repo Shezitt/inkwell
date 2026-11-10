@@ -15,6 +15,7 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QStatusBar>
+#include <QTabWidget>
 #include <QTest>
 #include <QTimer>
 #include <QTreeView>
@@ -29,6 +30,15 @@ class TestMainWindow : public QObject
 
 private:
     std::unique_ptr<TestNotebook> m_notebook;
+
+    QString title(PageId id) const
+    {
+        for (const Page &page : m_notebook->store->pages()) {
+            if (page.id == id)
+                return page.title;
+        }
+        return {};
+    }
 
 private slots:
     void init()
@@ -261,6 +271,57 @@ private slots:
         QVERIFY(!hide->isEnabled());
         highlight->trigger();
         QVERIFY(hide->isEnabled());
+    }
+
+    void renamesTheOpenPageWithF2()
+    {
+        const PageId page = m_notebook->newPage(u"text"_s);
+        SessionState state;
+        state.tabs = {{page, 2, 0}};
+        state.currentTab = 0;
+        state.sidebarVisible = false;
+        MainWindow window(*m_notebook->store, *m_notebook->writer);
+        window.restoreSession(state);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowActive(&window));
+        EditorArea *editors = window.findChild<EditorArea *>();
+        EditorView *editor = editors->editor(page);
+        editor->setFocus();
+        QTRY_COMPARE(QApplication::focusWidget(), editor);
+
+        // While typing in the page, F2 edits its name in the sidebar, which shows.
+        QTest::keyClick(editor, Qt::Key_F2);
+        auto *name = qobject_cast<QLineEdit *>(QApplication::focusWidget());
+        QVERIFY(name);
+        QCOMPARE(name->text(), u"Page"_s);
+        QVERIFY(window.findChild<NavigationPane *>()->isVisible());
+        QCOMPARE(editor->toPlainText(), u"text"_s); // F2 typed nothing
+
+        name->selectAll();
+        QTest::keyClicks(name, u"Renamed"_s);
+        QTest::keyClick(name, Qt::Key_Return);
+        QTRY_COMPARE(title(page), u"Renamed"_s); // committed when idle
+        QCOMPARE(editors->findChild<QTabWidget *>()->tabText(0), u"Renamed"_s);
+        // Typing goes on in the page, where it was.
+        QTRY_COMPARE(QApplication::focusWidget(), editor);
+        QCOMPARE(editor->textCursor().position(), 2);
+
+        // Escape keeps the name, and returns to the page too.
+        QTest::keyClick(editor, Qt::Key_F2);
+        name = qobject_cast<QLineEdit *>(QApplication::focusWidget());
+        QVERIFY(name);
+        QTest::keyClick(name, Qt::Key_Escape);
+        QCOMPARE(title(page), u"Renamed"_s);
+        QTRY_COMPARE(QApplication::focusWidget(), editor);
+
+        // In the sidebar, F2 renames what is selected there, such as a folder.
+        auto *tree = window.findChild<NavigationPane *>()->view();
+        tree->setFocus();
+        tree->setCurrentIndex(tree->model()->index(0, 0));
+        QTest::keyClick(tree, Qt::Key_F2);
+        name = qobject_cast<QLineEdit *>(QApplication::focusWidget());
+        QVERIFY(name);
+        QCOMPARE(name->text(), u"Notes"_s);
     }
 
     void zoomsWithTheKeyboard()

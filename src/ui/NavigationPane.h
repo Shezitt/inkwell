@@ -29,6 +29,8 @@ public:
 
     /// Selects @p id in the tree, expanding its folders, without emitting pageActivated().
     void revealPage(PageId id);
+    /// Reveals page @p id and starts renaming it; pageNamed() follows.
+    void renamePage(PageId id);
 
     [[nodiscard]] QList<FolderId> expandedFolders() const;
     void setExpandedFolders(const QList<FolderId> &ids);
@@ -49,8 +51,9 @@ public slots:
 
 signals:
     void pageActivated(inkwell::PageId id);
-    /// The user finished naming a page created with createPage().
-    void newPageNamed(inkwell::PageId id);
+    /// The user finished naming a page from createPage() or renamePage(), or
+    /// cancelled it.
+    void pageNamed(inkwell::PageId id);
     void expansionChanged();
     /// An item named @p name was moved to the trash from the sidebar.
     void movedToTrash(const QString &name);

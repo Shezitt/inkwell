@@ -70,8 +70,22 @@ MainWindow::MainWindow(NoteStore &store, BackgroundWriter &writer, QWidget *pare
                 editor->selectFirstMatch(words);
             m_editors->focusCurrentEditor();
         });
-    connect(
-        m_navigation, &NavigationPane::newPageNamed, m_editors, &EditorArea::focusCurrentEditor);
+    // Back to the page once it is named, so typing goes on where it was.
+    connect(m_navigation, &NavigationPane::pageNamed, m_editors, &EditorArea::focusCurrentEditor);
+
+    // F2 renames the open page while typing in it too. The sidebar's own F2
+    // renames what is selected there; the two never apply to the same focus.
+    auto *renamePage = new QAction(tr("Rename Page"), m_editors);
+    renamePage->setShortcut(Qt::Key_F2);
+    renamePage->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    m_editors->addAction(renamePage);
+    connect(renamePage, &QAction::triggered, this, [this] {
+        const PageId page = m_editors->currentPage();
+        if (page == 0)
+            return;
+        m_sidebarAction->setChecked(true); // the name is edited in the sidebar
+        m_navigation->renamePage(page);
+    });
     connect(m_model, &PageTreeModel::pageRenamed, m_editors, &EditorArea::renamePage);
     connect(m_model, &PageTreeModel::pageRenamed, this, &MainWindow::updateWindowTitle);
     // Trashed pages keep their text, including edits not saved yet.
